@@ -81,14 +81,7 @@ module Hutch
     # rubocop:enable Metrics/AbcSize
 
     def open_channel!
-      logger.info "opening rabbitmq channel with pool size #{consumer_pool_size}"
-      @channel = @connection.create_channel(nil, consumer_pool_size).tap do |ch|
-        @connection.prefetch_channel(ch, @config[:channel_prefetch])
-        if @config[:publisher_confirms] || @config[:force_publisher_confirms]
-          logger.info 'enabling publisher confirms'
-          ch.confirm_select
-        end
-      end
+      channel_broker.open_channel!
     end
 
     # Set up the connection to the RabbitMQ management API. Unfortunately, this
@@ -226,7 +219,7 @@ module Hutch
         "publishing #{spec} to #{routing_key}"
       end
 
-      response = @exchange.publish(payload, { persistent: true }
+      response = exchange.publish(payload, { persistent: true }
         .merge(properties)
         .merge(global_properties)
         .merge(non_overridable_properties))
@@ -235,6 +228,7 @@ module Hutch
       response
     end
 
+    # rubocop:disable Metrics/AbcSize
     def publish_wait(routing_key, message, properties = {})
       ensure_connection!(routing_key, message)
       if @config[:mq_wait_exchange].nil?
@@ -272,6 +266,7 @@ module Hutch
       channel.wait_for_confirms if @config[:force_publisher_confirms]
       response
     end
+    # rubocop:enable Metrics/AbcSize
 
     def confirm_select(*args)
       channel.confirm_select(*args)
@@ -314,6 +309,7 @@ module Hutch
       end
     end
 
+    # rubocop:disable Metrics/AbcSize
     def connection_params
       parse_uri
 
@@ -345,6 +341,7 @@ module Hutch
         params[:client_logger] = @config[:client_logger] if @config[:client_logger]
       end
     end
+    # rubocop:enable Metrics/AbcSize
 
     def parse_uri
       return unless @config[:uri] && !@config[:uri].empty?
@@ -404,7 +401,7 @@ module Hutch
     end
 
     def channel_work_pool
-      @channel.work_pool
+      channel.work_pool
     end
 
     def consumer_pool_size
