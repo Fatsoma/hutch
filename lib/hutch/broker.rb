@@ -142,11 +142,11 @@ module Hutch
     end
 
     # Create / get a durable queue and apply namespace if it exists.
-    def queue(name)
+    def queue(name, arguments = {})
       with_bunny_precondition_handler('queue') do
         namespace = @config[:namespace].to_s.downcase.gsub(/[^-:\.\w]/, '')
         name = name.prepend(namespace + ':') unless namespace.empty?
-        channel.queue(name, durable: true)
+        channel.queue(name, durable: true, arguments: arguments)
       end
     end
 
@@ -194,7 +194,12 @@ module Hutch
     end
 
     def stop
-      channel.work_pool.kill
+      # Enqueue a failing job that kills the consumer loop
+      channel_work_pool.shutdown
+      # Give `timeout` seconds to jobs that are still being processed
+      channel_work_pool.join(@config[:graceful_exit_timeout])
+      # If after `timeout` they are still running, they are killed
+      channel_work_pool.kill
     end
 
     def requeue(delivery_tag)
@@ -303,7 +308,11 @@ module Hutch
     end
 
     def work_pool_threads
-      channel.work_pool.threads || []
+      channel_work_pool.threads || []
+    end
+
+    def channel_work_pool
+      @channel.work_pool
     end
 
     def generate_id

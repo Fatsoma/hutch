@@ -1,4 +1,5 @@
 require 'hutch/error_handlers/logger'
+require 'erb'
 require 'logger'
 
 module Hutch
@@ -46,7 +47,11 @@ module Hutch
         connection_timeout: 11,
         read_timeout: 11,
         write_timeout: 11,
-        enable_http_api_use: true
+        enable_http_api_use: true,
+        # Number of seconds that a running consumer is given
+        # to finish its job when gracefully exiting Hutch, before
+        # it's killed.
+        graceful_exit_timeout: 11,
       }.merge(params)
     end
 
@@ -81,7 +86,7 @@ module Hutch
     end
 
     def self.load_from_file(file)
-      YAML.load(file).each do |attr, value|
+      YAML.load(ERB.new(File.read(file)).result).each do |attr, value|
         Hutch::Config.send("#{attr}=", value)
       end
     end
