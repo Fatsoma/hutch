@@ -116,5 +116,9 @@ module Hutch
         queue.bind(exchange)
       end
     end
+
+    def consumer_pool_size
+      @config[:consumer_pool_size]
+    end
   end
 end
