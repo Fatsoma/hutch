@@ -229,7 +229,7 @@ module Hutch
     end
 
     # rubocop:disable Metrics/AbcSize
-    def publish_wait(routing_key, message, properties = {})
+    def publish_wait(routing_key, message, properties = {}, options = {})
       ensure_connection!(routing_key, message)
       if @config[:mq_wait_exchange].nil?
         raise_publish_error('wait exchange not defined', routing_key, message)
