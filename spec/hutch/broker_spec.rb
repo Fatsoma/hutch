@@ -140,9 +140,14 @@ describe Hutch::Broker do
     before { broker.set_up_amqp_connection }
     after  { broker.disconnect }
 
-    describe '#default_wait_exchange' do
+    describe '#default_wait_exchange', adapter: :bunny do
       subject { super().default_wait_exchange }
       it { is_expected.to be_a Bunny::Exchange }
+    end
+
+    describe '#default_wait_exchange', adapter: :march_hare do
+      subject { super().default_wait_exchange }
+      it { is_expected.to be_a MarchHare::Exchange }
     end
 
     describe 'wait queue' do
@@ -152,10 +157,19 @@ describe Hutch::Broker do
       specify { expect(queues.keys).to include('wait-queue') }
     end
 
-    describe '#wait_exchanges' do
+    describe '#wait_exchanges', adapter: :bunny do
       specify do
         broker.wait_exchanges.each do |_name, wait_exchange|
           expect(wait_exchange).to be_a Bunny::Exchange
+        end
+      end
+      specify { expect(broker.wait_exchanges.count).to eq(2) }
+    end
+
+    describe '#wait_exchanges', adapter: :march_hare do
+      specify do
+        broker.wait_exchanges.each do |_name, wait_exchange|
+          expect(wait_exchange).to be_a MarchHare::Exchange
         end
       end
       specify { expect(broker.wait_exchanges.count).to eq(2) }
