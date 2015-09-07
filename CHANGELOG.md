@@ -1,10 +1,56 @@
-## 0.15.0 — (unreleased)
+## 0.16.0 — July 19th, 2015
+
+### Support amqps URIs
+
+Hutch now automatically enables TLS and changes default port
+when URI scheme is `amqps`.
+
+Contributed by Carl Hörberg.
+
+### Hash With Indifferent Access
+
+Hutch now uses `HashWithIndifferentAccess` internally
+to reduce use of symbols (which are not garbage collected
+by widely used Ruby versions).
+
+Contributed by Teodor Pripoae.
+
+
+## 0.15.0 — May 5th, 2015
+
+### Airbrake Error Handler
+
+Contributed by Nate Salisbury.
+
+### Ruby 1.9 Support Dropped
+
+Ruby 1.9 is no longer supported by Hutch (and soon Bunny 2.0).
+1.9 is also no longer maintained by the Ruby core team.
+
+### Custom Arguments per Consumers
 
 Allow to set custom arguments per consumers by using the `arguments` setter.
 Arguments are usually used by rabbitmq plugins or to set queue policies. You can
 find a list of supported arguments [here](https://www.rabbitmq.com/extensions.html).
 
 Contributed by Pierre-Louis Gottfrois.
+
+### Message Processing Tracers
+
+Allow to track message processing by using the `:tracer` config option,
+the value should be a class (or fully-qualified string name of a class) that
+implements the tracing interface.
+
+A tracer that performs NewRelic instrumentation ships with Hutch
+and requires New Relic gem to be loaded.
+
+Contributed by Mirosław Nagaś.
+
+### Added Logger Method to Consumer Module
+
+Consumers can now call a logger method to write to Hutch's log.
+
+Contributed by Matty Courtney
 
 ## 0.14.0 — Feb 23rd, 2015
 

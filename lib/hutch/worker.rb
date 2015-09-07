@@ -101,15 +101,17 @@ module Hutch
 
       begin
         message = Message.new(delivery_info, properties, payload)
-        instance = consumer.new
-        instance.broker = @broker
-        instance.delivery_info = delivery_info
-        instance.process(message)
+        consumer_instance = consumer.new.tap { |c| c.broker, c.delivery_info = @broker, delivery_info }
+        with_tracing(consumer_instance).handle(message)
         Thread.main[:action_queue] << [:ack, delivery_info.delivery_tag]
       rescue StandardError => ex
         Thread.main[:action_queue] << [:nack, delivery_info.delivery_tag]
         handle_error(properties.message_id, payload, consumer, ex)
       end
+    end
+
+    def with_tracing(klass)
+      Hutch::Config[:tracer].new(klass)
     end
 
     def handle_error(message_id, payload, consumer, ex)
