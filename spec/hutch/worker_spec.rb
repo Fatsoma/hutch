@@ -47,9 +47,7 @@ describe Hutch::Worker do
     end
     let(:properties) { double('Properties', message_id: nil) }
     let(:handle_message) do
-      Thread.new do
-        worker.handle_message(consumer, delivery_info, properties, payload)
-      end.join
+      worker.handle_message(consumer, delivery_info, properties, payload)
       worker.handle_actions
     end
     before { allow(consumer).to receive_messages(new: consumer_instance) }
