@@ -165,14 +165,16 @@ describe Hutch::Broker do
 
   describe '#queue' do
     let(:channel) { double('Channel') }
+    let(:arguments) { { foo: :bar } }
     before { allow(broker).to receive(:channel) { channel } }
 
     it 'applies a global namespace' do
       config[:namespace] = 'mirror-all.service'
       expect(broker.channel).to receive(:queue) do |*args|
-        args.first == 'mirror-all.service:test'
+        args.first == ''
+        args.last == arguments
       end
-      broker.queue('test')
+      broker.queue('test', arguments)
     end
   end
 
@@ -244,6 +246,25 @@ describe Hutch::Broker do
     context 'when timeout expires for one thread' do
       let(:threads) { [double(join: thread), double(join: nil)] }
       specify { expect(broker.wait_on_threads(1)).to be_falsey }
+    end
+  end
+
+  describe '#stop' do
+    let(:thread_1) { double('Thread') }
+    let(:thread_2) { double('Thread') }
+    let(:work_pool) { double('Bunny::ConsumerWorkPool') }
+    let(:config) { { graceful_exit_timeout: 2 } }
+
+    before do
+      allow(broker).to receive(:channel_work_pool).and_return(work_pool)
+    end
+
+    it 'gracefully stops the work pool' do
+      expect(work_pool).to receive(:shutdown)
+      expect(work_pool).to receive(:join).with(2)
+      expect(work_pool).to receive(:kill)
+
+      broker.stop
     end
   end
 

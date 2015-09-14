@@ -36,6 +36,12 @@ module Hutch
         logger.info 'HTTP API use is disabled'
       end
 
+      if tracing_enabled?
+        logger.info "tracing is enabled using #{@config[:tracer]}"
+      else
+        logger.info 'tracing is disabled'
+      end
+
       return unless block_given?
       begin
         yield
@@ -70,10 +76,12 @@ module Hutch
         @config[:mq_vhost]    = u.path.sub(%r{^/}, '')
         @config[:mq_username] = u.user
         @config[:mq_password] = u.password
+        @config[:mq_tls]      = u.scheme == 'amqps'
       end
 
+      tls                = @config[:mq_tls]
       host               = @config[:mq_host]
-      port               = @config[:mq_port]
+      port               = @config.to_hash.fetch(:mq_port, (tls ? 5671 : 5672))
       vhost              = if @config[:mq_vhost] && '' != @config[:mq_vhost]
                              @config[:mq_vhost]
                            else
@@ -81,7 +89,6 @@ module Hutch
                            end
       username           = @config[:mq_username]
       password           = @config[:mq_password]
-      tls                = @config[:mq_tls]
       tls_key            = @config[:mq_tls_key]
       tls_cert           = @config[:mq_tls_cert]
       heartbeat          = @config[:heartbeat]
@@ -89,8 +96,8 @@ module Hutch
       read_timeout       = @config[:read_timeout]
       write_timeout      = @config[:write_timeout]
 
-      protocol           = tls ? 'amqps://' : 'amqp://'
-      sanitized_uri      = "#{protocol}#{username}@#{host}:#{port}/#{vhost.sub(%r{^/}, '')}"
+      scheme             = tls ? 'amqps' : 'amqp'
+      sanitized_uri      = "#{scheme}://#{username}@#{host}:#{port}/#{vhost.sub(%r{^/}, '')}"
       logger.info "connecting to rabbitmq (#{sanitized_uri})"
       @connection = Bunny.new(host: host, port: port, vhost: vhost,
                               tls: tls, tls_key: tls_key, tls_cert: tls_cert,
@@ -141,12 +148,16 @@ module Hutch
       op && cf
     end
 
+    def tracing_enabled?
+      @config[:tracer] && @config[:tracer] != Hutch::Tracers::NullTracer
+    end
+
     # Create / get a durable queue and apply namespace if it exists.
-    def queue(name)
+    def queue(name, arguments = {})
       with_bunny_precondition_handler('queue') do
         namespace = @config[:namespace].to_s.downcase.gsub(/[^-:\.\w]/, '')
         name = name.prepend(namespace + ':') unless namespace.empty?
-        channel.queue(name, durable: true)
+        channel.queue(name, durable: true, arguments: arguments)
       end
     end
 
@@ -194,7 +205,12 @@ module Hutch
     end
 
     def stop
-      channel.work_pool.kill
+      # Enqueue a failing job that kills the consumer loop
+      channel_work_pool.shutdown
+      # Give `timeout` seconds to jobs that are still being processed
+      channel_work_pool.join(@config[:graceful_exit_timeout])
+      # If after `timeout` they are still running, they are killed
+      channel_work_pool.kill
     end
 
     def requeue(delivery_tag)
@@ -303,7 +319,11 @@ module Hutch
     end
 
     def work_pool_threads
-      channel.work_pool.threads || []
+      channel_work_pool.threads || []
+    end
+
+    def channel_work_pool
+      @channel.work_pool
     end
 
     def generate_id
