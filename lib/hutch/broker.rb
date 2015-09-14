@@ -39,7 +39,7 @@ module Hutch
       if tracing_enabled?
         logger.info "tracing is enabled using #{@config[:tracer]}"
       else
-        logger.info "tracing is disabled"
+        logger.info 'tracing is disabled'
       end
 
       return unless block_given?
@@ -76,12 +76,12 @@ module Hutch
         @config[:mq_vhost]    = u.path.sub(%r{^/}, '')
         @config[:mq_username] = u.user
         @config[:mq_password] = u.password
-        @config[:mq_tls]      = u.scheme == "amqps"
+        @config[:mq_tls]      = u.scheme == 'amqps'
       end
 
       tls                = @config[:mq_tls]
       host               = @config[:mq_host]
-      port               = @config.fetch(:mq_port, (tls ? 5671 : 5672))
+      port               = @config.to_hash.fetch(:mq_port, (tls ? 5671 : 5672))
       vhost              = if @config[:mq_vhost] && '' != @config[:mq_vhost]
                              @config[:mq_vhost]
                            else
