@@ -36,6 +36,12 @@ module Hutch
         logger.info 'HTTP API use is disabled'
       end
 
+      if tracing_enabled?
+        logger.info "tracing is enabled using #{@config[:tracer]}"
+      else
+        logger.info "tracing is disabled"
+      end
+
       return unless block_given?
       begin
         yield
@@ -70,10 +76,12 @@ module Hutch
         @config[:mq_vhost]    = u.path.sub(%r{^/}, '')
         @config[:mq_username] = u.user
         @config[:mq_password] = u.password
+        @config[:mq_tls]      = u.scheme == "amqps"
       end
 
+      tls                = @config[:mq_tls]
       host               = @config[:mq_host]
-      port               = @config[:mq_port]
+      port               = @config.fetch(:mq_port, (tls ? 5671 : 5672))
       vhost              = if @config[:mq_vhost] && '' != @config[:mq_vhost]
                              @config[:mq_vhost]
                            else
@@ -81,7 +89,6 @@ module Hutch
                            end
       username           = @config[:mq_username]
       password           = @config[:mq_password]
-      tls                = @config[:mq_tls]
       tls_key            = @config[:mq_tls_key]
       tls_cert           = @config[:mq_tls_cert]
       heartbeat          = @config[:heartbeat]
@@ -89,8 +96,8 @@ module Hutch
       read_timeout       = @config[:read_timeout]
       write_timeout      = @config[:write_timeout]
 
-      protocol           = tls ? 'amqps://' : 'amqp://'
-      sanitized_uri      = "#{protocol}#{username}@#{host}:#{port}/#{vhost.sub(%r{^/}, '')}"
+      scheme             = tls ? 'amqps' : 'amqp'
+      sanitized_uri      = "#{scheme}://#{username}@#{host}:#{port}/#{vhost.sub(%r{^/}, '')}"
       logger.info "connecting to rabbitmq (#{sanitized_uri})"
       @connection = Bunny.new(host: host, port: port, vhost: vhost,
                               tls: tls, tls_key: tls_key, tls_cert: tls_cert,
@@ -139,6 +146,10 @@ module Hutch
            end
 
       op && cf
+    end
+
+    def tracing_enabled?
+      @config[:tracer] && @config[:tracer] != Hutch::Tracers::NullTracer
     end
 
     # Create / get a durable queue and apply namespace if it exists.
