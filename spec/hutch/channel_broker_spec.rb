@@ -55,7 +55,6 @@ describe Hutch::ChannelBroker do
   describe '#active' do
     before do
       channel_broker.instance_variable_set('@channel', channel)
-      allow(channel).to receive(:active).and_return(active)
     end
 
     subject { channel_broker.active }
@@ -63,11 +62,15 @@ describe Hutch::ChannelBroker do
     context 'when channel is active' do
       let(:active) { true }
 
+      before { allow(channel).to receive(:active).and_return(active) }
+
       it { is_expected.to be true }
     end
 
     context 'when channel is not active' do
       let(:active) { false }
+
+      before { allow(channel).to receive(:active).and_return(active) }
 
       it { is_expected.to be_falsey }
     end

@@ -52,9 +52,9 @@ module Hutch
     end
 
     def open_channel!
-      logger.info 'opening rabbitmq channel'
-      @channel = @connection.create_channel.tap do |ch|
-        ch.prefetch(@config[:channel_prefetch]) if @config[:channel_prefetch]
+      logger.info "opening rabbitmq channel with pool size #{consumer_pool_size}"
+      @channel = @connection.create_channel(nil, consumer_pool_size).tap do |ch|
+        @connection.prefetch_channel(ch, @config[:channel_prefetch])
         if @config[:publisher_confirms] || @config[:force_publisher_confirms]
           logger.info 'enabling publisher confirms'
           ch.confirm_select
@@ -115,6 +115,10 @@ module Hutch
         )
         queue.bind(exchange)
       end
+    end
+
+    def consumer_pool_size
+      @config[:consumer_pool_size]
     end
   end
 end
