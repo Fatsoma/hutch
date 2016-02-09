@@ -1,12 +1,15 @@
 require 'hutch/message'
 require 'hutch/logging'
 require 'hutch/broker'
+require 'hutch/acknowledgements/nack_on_all_failures'
 require 'carrot-top'
 require 'thread'
 
 module Hutch
   class Worker
     include Logging
+
+    SHUTDOWN_SIGNALS = %w(QUIT TERM INT)
 
     def initialize(broker, consumers)
       @broker        = broker
@@ -50,7 +53,7 @@ module Hutch
     # gracefully. Forceful shutdowns are very bad!
     def register_signal_handlers
       Thread.main[:signal_queue] = []
-      %w(QUIT TERM INT).keep_if { |s| Signal.list.keys.include? s }.map(&:to_sym).each do |sig|
+      supported_shutdown_signals.each do |sig|
         # This needs to be reentrant, so we queue up signals to be handled
         # in the run loop, rather than acting on signals here
         trap(sig) do
@@ -78,8 +81,13 @@ module Hutch
     # Handle all pending message acknowledgement actions
     def handle_actions
       until Thread.main[:action_queue].empty?
-        action, delivery_tag = Thread.main[:action_queue].pop
-        @broker.public_send(action, delivery_tag)
+        action, delivery_info, properties, ex = Thread.main[:action_queue].pop
+        case action
+        when :ack
+          @broker.ack(delivery_info.delivery_tag)
+        when :nack
+          acknowledge_error(delivery_info, properties, @broker, ex)
+        end
       end
     end
 
@@ -140,9 +148,9 @@ module Hutch
       consumer_instance.broker = @broker
       consumer_instance.delivery_info = delivery_info
       with_tracing(consumer_instance).handle(message)
-      Thread.main[:action_queue] << [:ack, delivery_info.delivery_tag]
-    rescue StandardError => ex
-      Thread.main[:action_queue] << [:nack, delivery_info.delivery_tag]
+      Thread.main[:action_queue] << [:ack, delivery_info, properties, nil]
+    rescue => ex
+      Thread.main[:action_queue] << [:nack, delivery_info, properties, ex]
       handle_error(properties.message_id, payload, consumer, ex)
     end
 
@@ -156,11 +164,29 @@ module Hutch
       end
     end
 
+    def acknowledge_error(delivery_info, properties, broker, ex)
+      acks = error_acknowledgements +
+        [Hutch::Acknowledgements::NackOnAllFailures.new]
+      acks.find do |backend|
+        backend.handle(delivery_info, properties, broker, ex)
+      end
+    end
+
     def consumers=(val)
       if val.empty?
         logger.warn "no consumer loaded, ensure there's no configuration issue"
       end
       @consumers = val
+    end
+
+    def error_acknowledgements
+      Hutch::Config[:error_acknowledgements]
+    end
+
+    private
+
+    def supported_shutdown_signals
+      SHUTDOWN_SIGNALS.keep_if { |s| Signal.list.keys.include? s }.map(&:to_sym)
     end
   end
 end

@@ -8,11 +8,12 @@ module Hutch
   module Config
     require 'yaml'
 
-    def self.initialize(params={})
+    def self.initialize(params = {})
       @config = {
         mq_host: 'localhost',
         mq_port: 5672,
         mq_exchange: 'hutch',  # TODO: should this be required?
+        mq_exchange_options: {},
         mq_vhost: '/',
         mq_tls: false,
         mq_tls_cert: nil,
@@ -35,6 +36,9 @@ module Hutch
         require_paths: [],
         autoload_rails: true,
         error_handlers: [Hutch::ErrorHandlers::Logger.new],
+        # note that this is not a list, it is a chain of responsibility
+        # that will fall back to "nack unconditionally"
+        error_acknowledgements: [],
         tracer: Hutch::Tracers::NullTracer,
         namespace: nil,
         daemonise: false,
