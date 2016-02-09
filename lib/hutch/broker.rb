@@ -65,7 +65,6 @@ module Hutch
       open_channel!
     end
 
-    # rubocop:disable Metrics/AbcSize
     def open_connection!
       logger.info "connecting to rabbitmq (#{sanitized_uri})"
 
@@ -78,7 +77,6 @@ module Hutch
       logger.info "connected to RabbitMQ at #{connection_params[:host]} as #{connection_params[:username]}"
       @connection
     end
-    # rubocop:enable Metrics/AbcSize
 
     def open_channel!
       channel_broker.open_channel!
