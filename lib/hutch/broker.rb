@@ -290,7 +290,6 @@ module Hutch
 
     def ensure_connection!(routing_key, message)
       raise_publish_error('no connection to broker', routing_key, message) unless @connection
-      raise_publish_error('connection is closed', routing_key, message) unless @connection.open?
     end
 
     def channel_broker
