@@ -20,6 +20,11 @@ Hutch is a moderately mature project (started in early 2013)
 that was extracted from production systems.
 
 
+## Supported Ruby Versions
+
+Hutch requires CRuby 2.0+ or JRuby 9K.
+
+
 ## Overview
 
 Hutch is a conventions-based framework for writing services that communicate
@@ -31,7 +36,8 @@ With Hutch, consumers are stored in separate files and include the `Hutch::Consu
 They are then loaded by a command line runner which connects to RabbitMQ, sets up queues and bindings,
 and so on. Publishers connect to RabbitMQ via `Hutch.connect` and publish using `Hutch.publish`.
 
-Hutch uses [Bunny](http://rubybunny.info) under the hood.
+Hutch uses [Bunny](http://rubybunny.info) or [March Hare](http://rubymarchhare.info)
+(on JRuby) under the hood.
 
 
 ## Defining Consumers
@@ -305,13 +311,17 @@ Known configuration parameters are:
                          tracked (e.g. using `Hutch::Broker#confirm_select` callback or `Hutch::Broker#wait_for_confirms`)
  * `force_publisher_confirms`: enables publisher confirms, forces `Hutch::Broker#wait_for_confirms` for every publish. **This is the safest option which also offers the lowest throughput**.
  * `log_level`: log level used by the standard Ruby logger (default: `Logger::INFO`)
+ * `error_handlers`: a list of error handler objects, see classes in `Hutch::ErrorHandlers`. All configured
+   handlers will be invoked unconditionally in the order listed.
+ * `error_acknowledgements`: a chain of responsibility of objects that acknowledge/reject/requeue messages when an
+    exception happens, see classes in `Hutch::Acknowledgements`.
  * `mq_exchange`: exchange to use for publishing (default: `hutch`)
  * `mq_wait_exchange`: exchange to use for waiting. Leave unset to not use a wait exchange.
  * `mq_wait_queue`: queue to use for waiting (default: `wait-queue`)
  * `heartbeat`: [RabbitMQ heartbeat timeout](http://rabbitmq.com/heartbeats.html) (default: `30`)
  * `connection_timeout`: Bunny's socket open timeout (default: `11`)
  * `read_timeout`: Bunny's socket read timeout (default: `11`)
- * `write_timemout`: Bunny's socket write timeout (default: `11`)
+ * `write_timeout`: Bunny's socket write timeout (default: `11`)
  * `tracer`: tracer to use to track message processing
 
 

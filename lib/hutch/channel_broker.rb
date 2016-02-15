@@ -61,10 +61,11 @@ module Hutch
         end
 
         exchange_name = @config[:mq_exchange]
+        exchange_options = { durable: true }.merge @config[:mq_exchange_options]
         logger.info "using topic exchange '#{exchange_name}'"
 
         with_bunny_precondition_handler('exchange') do
-          @exchange = ch.topic(exchange_name, durable: true)
+          @exchange = ch.topic(exchange_name, exchange_options)
         end
       end
     end
