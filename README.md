@@ -323,6 +323,7 @@ Known configuration parameters are:
  * `read_timeout`: Bunny's socket read timeout (default: `11`)
  * `write_timeout`: Bunny's socket write timeout (default: `11`)
  * `automatically_recover`: let Bunny or MarchHare automatically recover network failures (default: `true`)
+ * `recover_from_connection_close`: let Bunny automatically recover from server-sent connection.close
  * `network_recovery_interval`: interval in seconds between network recovery attempts (default: `1`)
  * `tracer`: tracer to use to track message processing
 

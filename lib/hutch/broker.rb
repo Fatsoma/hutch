@@ -332,6 +332,7 @@ module Hutch
         params[:write_timeout]      = @config[:write_timeout]
 
         params[:automatically_recover] = @config[:automatically_recover]
+        params[:recover_from_connection_close] = @config[:recover_from_connection_close]
         params[:network_recovery_interval] = @config[:network_recovery_interval]
 
         params[:logger] = @config[:client_logger] if @config[:client_logger]
