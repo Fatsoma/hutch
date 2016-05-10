@@ -54,6 +54,9 @@ module Hutch
         connection_timeout: 11,
         read_timeout: 11,
         write_timeout: 11,
+        # Let bunny automatically recover on network failure
+        automatically_recover: true,
+        network_recovery_interval: 1,
         enable_http_api_use: true,
         # Number of seconds that a running consumer is given
         # to finish its job when gracefully exiting Hutch, before
