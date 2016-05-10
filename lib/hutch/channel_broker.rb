@@ -1,10 +1,8 @@
 require 'hutch/logging'
-require 'hutch/broker_handlers'
 
 module Hutch
   class ChannelBroker
     include Logging
-    include BrokerHandlers
 
     def initialize(connection, config)
       @connection = connection
@@ -120,6 +118,15 @@ module Hutch
 
     def consumer_pool_size
       @config[:consumer_pool_size]
+    end
+
+    def with_bunny_precondition_handler(item)
+      yield
+    rescue Hutch::Adapter::PreconditionFailed => ex
+      logger.error ex.message
+      s = "RabbitMQ responded with 406 Precondition Failed when creating this #{item}. " \
+          'Perhaps it is being redeclared with non-matching attributes'
+      raise WorkerSetupError, s
     end
   end
 end

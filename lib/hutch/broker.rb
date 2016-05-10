@@ -3,14 +3,12 @@ require 'forwardable'
 require 'securerandom'
 require 'hutch/logging'
 require 'hutch/exceptions'
-require 'hutch/broker_handlers'
 require 'hutch/channel_broker'
 
 module Hutch
   class Broker
     include Logging
     extend Forwardable
-    include BrokerHandlers
 
     attr_accessor :connection, :api_client
     def_delegators :channel_broker,
@@ -306,6 +304,7 @@ module Hutch
       end
     end
 
+    # rubocop:disable Metrics/AbcSize
     def connection_params
       parse_uri
 
@@ -338,6 +337,7 @@ module Hutch
         params[:logger] = @config[:client_logger] if @config[:client_logger]
       end
     end
+    # rubocop:enable Metrics/AbcSize
 
     def parse_uri
       return unless @config[:uri] && !@config[:uri].empty?
@@ -376,6 +376,40 @@ module Hutch
 
     def global_properties
       Hutch.global_properties.respond_to?(:call) ? Hutch.global_properties.call : Hutch.global_properties
+    end
+
+    def with_authentication_error_handler
+      yield
+    rescue Net::HTTPServerException => ex
+      logger.error "HTTP API connection error: #{ex.message.downcase}"
+      if ex.response.code == '401'
+        raise AuthenticationError, 'invalid HTTP API credentials'
+      else
+        raise
+      end
+    end
+
+    def with_connection_error_handler
+      yield
+    rescue Errno::ECONNREFUSED => ex
+      logger.error "HTTP API connection error: #{ex.message.downcase}"
+      raise ConnectionError, "couldn't connect to HTTP API at #{api_config.sanitized_uri}"
+    end
+
+    def with_bunny_precondition_handler(item)
+      yield
+    rescue Hutch::Adapter::PreconditionFailed => ex
+      logger.error ex.message
+      s = "RabbitMQ responded with 406 Precondition Failed when creating this #{item}. " \
+          'Perhaps it is being redeclared with non-matching attributes'
+      raise WorkerSetupError, s
+    end
+
+    def with_bunny_connection_handler(uri)
+      yield
+    rescue Hutch::Adapter::ConnectionRefused => ex
+      logger.error "amqp connection error: #{ex.message.downcase}"
+      raise ConnectionError, "couldn't connect to rabbitmq at #{uri}. Check your configuration, network connectivity and RabbitMQ logs."
     end
   end
 end
