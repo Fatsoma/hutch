@@ -93,7 +93,6 @@ module Hutch
       :error
     end
 
-    # rubocop:disable Metrics/AbcSize
     def parse_options(args = ARGV)
       OptionParser.new do |opts|
         opts.banner = 'usage: hutch [options]'
@@ -210,7 +209,6 @@ module Hutch
         end
       end.parse!(args)
     end
-    # rubocop:enable Metrics/AbcSize
 
     def write_pid
       pidfile = File.expand_path(Hutch::Config.pidfile)
