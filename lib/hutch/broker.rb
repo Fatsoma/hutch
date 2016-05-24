@@ -222,11 +222,10 @@ module Hutch
         .merge(global_properties)
         .merge(non_overridable_properties))
 
-      channel.wait_for_confirms if @config[:force_publisher_confirms]
+      wait_for_confirms_or_raise(routing_key, message) if @config[:force_publisher_confirms]
       response
     end
 
-    # rubocop:disable Metrics/AbcSize
     def publish_wait(routing_key, message, properties = {}, options = {})
       ensure_connection!(routing_key, message)
       if @config[:mq_wait_exchange].nil?
@@ -261,10 +260,9 @@ module Hutch
 
       response = exchange.publish(payload, message_properties)
 
-      channel.wait_for_confirms if @config[:force_publisher_confirms]
+      wait_for_confirms_or_raise(routing_key, message) if @config[:force_publisher_confirms]
       response
     end
-    # rubocop:enable Metrics/AbcSize
 
     def confirm_select(*args)
       channel.confirm_select(*args)
@@ -272,6 +270,12 @@ module Hutch
 
     def wait_for_confirms
       channel.wait_for_confirms
+    end
+
+    def wait_for_confirms_or_raise(routing_key, message)
+      unless channel.wait_for_confirms
+        raise_publish_error('Message not acknowledged by broker', routing_key, message)
+      end
     end
 
     def using_publisher_confirmations?
@@ -306,7 +310,6 @@ module Hutch
       end
     end
 
-    # rubocop:disable Metrics/AbcSize
     def connection_params
       parse_uri
 
@@ -338,7 +341,6 @@ module Hutch
         params[:logger] = @config[:client_logger] if @config[:client_logger]
       end
     end
-    # rubocop:enable Metrics/AbcSize
 
     def parse_uri
       return unless @config[:uri] && !@config[:uri].empty?
