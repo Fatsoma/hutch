@@ -401,12 +401,14 @@ describe Hutch::Broker do
         it 'waits for confirms on the channel', adapter: :bunny do
           expect_any_instance_of(Bunny::Channel)
             .to receive(:wait_for_confirms)
+            .and_return(true)
           broker.publish('test.key', 'message')
         end
 
         it 'waits for confirms on the channel', adapter: :march_hare do
           expect_any_instance_of(MarchHare::Channel)
             .to receive(:wait_for_confirms)
+            .and_return(true)
           broker.publish('test.key', 'message')
         end
       end
@@ -539,12 +541,14 @@ describe Hutch::Broker do
           it 'waits for confirms on the channel', adapter: :bunny do
             expect_any_instance_of(Bunny::Channel)
               .to receive(:wait_for_confirms)
+              .and_return(true)
             broker.publish_wait('test.key', 'message')
           end
 
           it 'waits for confirms on the channel', adapter: :march_hare do
             expect_any_instance_of(MarchHare::Channel)
               .to receive(:wait_for_confirms)
+              .and_return(true)
             broker.publish_wait('test.key', 'message')
           end
         end
