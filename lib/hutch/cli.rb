@@ -1,9 +1,9 @@
 require 'optparse'
 
-require 'hutch/version'
 require 'hutch/logging'
-require 'hutch/exceptions'
 require 'hutch/config'
+require 'hutch/version'
+require 'hutch/exceptions'
 
 module Hutch
   class CLI
@@ -11,9 +11,10 @@ module Hutch
 
     # Run a Hutch worker with the command line interface.
     def run(argv = ARGV)
+      Hutch::Config.initialize
       parse_options(argv)
 
-      ::Process.daemon(true) if Hutch::Config.daemonise
+      daemonise_process
 
       write_pid if Hutch::Config.pidfile
 
@@ -85,7 +86,7 @@ module Hutch
     # gracefully (with a SIGQUIT, SIGTERM or SIGINT).
     def start_work_loop
       Hutch.connect
-      @worker = Hutch::Worker.new(Hutch.broker, Hutch.consumers)
+      @worker = Hutch::Worker.new(Hutch.broker, Hutch.consumers, Hutch::Config.setup_procs)
       @worker.run
       :success
     rescue ConnectionError, AuthenticationError, WorkerSetupError => ex
@@ -109,14 +110,16 @@ module Hutch
           Hutch::Config.mq_tls = tls
         end
 
-        opts.on('--mq-tls-cert FILE', 'Certificate  for TLS client verification') do |file|
-          abort "Certificate file '#{file}' not found" unless File.exist?(file)
-          Hutch::Config.mq_tls_cert = file
+        opts.on('--mq-tls-cert FILE', 'Certificate for TLS client verification') do |file|
+          abort_without_file(file, 'Certificate file') do
+            Hutch::Config.mq_tls_cert = file
+          end
         end
 
         opts.on('--mq-tls-key FILE', 'Private key for TLS client verification') do |file|
-          abort "Private key file '#{file}' not found" unless File.exist?(file)
-          Hutch::Config.mq_tls_key = file
+          abort_without_file(file, 'Private key file') do
+            Hutch::Config.mq_tls_key = file
+          end
         end
 
         opts.on('--mq-exchange EXCHANGE',
@@ -166,7 +169,7 @@ module Hutch
           begin
             File.open(file) { |fp| Hutch::Config.load_from_file(fp) }
           rescue Errno::ENOENT
-            abort "Config file '#{file}' not found"
+            abort_with_message("Config file '#{file}' not found")
           end
         end
 
@@ -214,6 +217,28 @@ module Hutch
       pidfile = File.expand_path(Hutch::Config.pidfile)
       Hutch.logger.info "writing pid in #{pidfile}"
       File.open(pidfile, 'w') { |f| f.puts ::Process.pid }
+    end
+
+    private
+
+    def daemonise_process
+      return unless Hutch::Config.daemonise
+      if defined?(JRUBY_VERSION)
+        Hutch.logger.warn "JRuby ignores the --daemonise option"
+        return
+      end
+
+      ::Process.daemon(true)
+    end
+
+    def abort_without_file(file, file_description, &block)
+      abort_with_message("#{file_description} '#{file}' not found") unless File.exist?(file)
+
+      yield
+    end
+
+    def abort_with_message(message)
+      abort message
     end
   end
 end

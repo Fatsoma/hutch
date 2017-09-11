@@ -1,8 +1,10 @@
+require 'active_support/core_ext/object/blank'
+
 require 'carrot-top'
 require 'forwardable'
-require 'securerandom'
 require 'hutch/logging'
 require 'hutch/exceptions'
+require 'hutch/publisher'
 require 'hutch/broker_handlers'
 require 'hutch/channel_broker'
 
@@ -21,10 +23,20 @@ module Hutch
 
     CHANNEL_BROKER_KEY = :hutch_channel_broker
 
+    # @param config [nil,Hash] Configuration override
     def initialize(config = nil)
       @config = config || Hutch::Config
     end
 
+    # Connect to broker
+    #
+    # @example
+    #   Hutch::Broker.new.connect(enable_http_api_use: true) do
+    #     # will disconnect after this block
+    #   end
+    #
+    # @param [Hash] options The options to connect with
+    # @option options [Boolean] :enable_http_api_use
     def connect(options = {})
       @options = options
       set_up_amqp_connection
@@ -57,29 +69,52 @@ module Hutch
       @api_client = nil
     end
 
-    # Connect to RabbitMQ via AMQP. This sets up the main connection and
-    # channel we use for talking to RabbitMQ. It also ensures the existence of
-    # the exchange we'll be using.
+    # Connect to RabbitMQ via AMQP
+    #
+    # This sets up the main connection and channel we use for talking to
+    # RabbitMQ. It also ensures the existence of the exchange we'll be using.
     def set_up_amqp_connection
       open_connection!
       open_channel!
+      declare_exchange!
+      declare_publisher!
     end
 
-    def open_connection!
+    def open_connection
       logger.info "connecting to rabbitmq (#{sanitized_uri})"
 
-      @connection = Hutch::Adapter.new(connection_params)
+      connection = Hutch::Adapter.new(connection_params)
 
       with_bunny_connection_handler(sanitized_uri) do
-        @connection.start
+        connection.start
       end
 
       logger.info "connected to RabbitMQ at #{connection_params[:host]} as #{connection_params[:username]}"
-      @connection
+      connection
+    end
+
+    def open_connection!
+      @connection = open_connection
+    end
+
+    def open_channel
+      channel_broker.open_channel
     end
 
     def open_channel!
       channel_broker.open_channel!
+    end
+
+    def declare_exchange(ch = channel)
+      channel_broker.declare_exchange(ch)
+    end
+
+    def declare_exchange!(*args)
+      channel_broker.declare_exchange!(*args)
+    end
+
+    def declare_publisher!
+      @publisher = Hutch::Publisher.new(connection, channel, exchange, @config)
     end
 
     # Set up the connection to the RabbitMQ management API. Unfortunately, this
@@ -117,7 +152,7 @@ module Hutch
     def queue(name, arguments = {})
       with_bunny_precondition_handler('queue') do
         namespace = @config[:namespace].to_s.downcase.gsub(/[^-:\.\w]/, '')
-        name = name.prepend(namespace + ':') unless namespace.empty?
+        name = name.prepend(namespace + ':') if namespace.present?
         channel.queue(name, durable: true, arguments: arguments)
       end
     end
@@ -125,7 +160,7 @@ module Hutch
     # Return a mapping of queue names to the routing keys they're bound to.
     def bindings
       results = Hash.new { |hash, key| hash[key] = [] }
-      @api_client.bindings.each do |binding|
+      api_client.bindings.each do |binding|
         next if binding['destination'] == binding['routing_key']
         next unless binding['source'] == @config[:mq_exchange]
         next unless binding['vhost'] == @config[:mq_vhost]
@@ -134,35 +169,30 @@ module Hutch
       results
     end
 
+    # Find the existing bindings, and unbind any redundant bindings
+    def unbind_redundant_bindings(queue, routing_keys)
+      return unless http_api_use_enabled?
+
+      bindings.each do |dest, keys|
+        next unless dest == queue.name
+        keys.reject { |key| routing_keys.include?(key) }.each do |key|
+          logger.debug "removing redundant binding #{queue.name} <--> #{key}"
+          queue.unbind(exchange, routing_key: key)
+        end
+      end
+    end
+
     # Bind a queue to the broker's exchange on the routing keys provided. Any
     # existing bindings on the queue that aren't present in the array of
     # routing keys will be unbound.
     def bind_queue(queue, routing_keys)
-      if http_api_use_enabled?
-        # Find the existing bindings, and unbind any redundant bindings
-        queue_bindings = bindings.select { |dest, _keys| dest == queue.name }
-        queue_bindings.each do |_dest, keys|
-          keys.reject { |key| routing_keys.include?(key) }.each do |key|
-            logger.debug "removing redundant binding #{queue.name} <--> #{key}"
-            queue.unbind(exchange, routing_key: key)
-          end
-        end
-      end
+      unbind_redundant_bindings(queue, routing_keys)
 
       # Ensure all the desired bindings are present
       routing_keys.each do |routing_key|
         logger.debug "creating binding #{queue.name} <--> #{routing_key}"
         queue.bind(exchange, routing_key: routing_key)
       end
-    end
-
-    # Each subscriber is run in a thread. This calls Thread#join on each of the
-    # subscriber threads.
-    def wait_on_threads(timeout)
-      # Thread#join returns nil when the timeout is hit. If any return nil,
-      # the threads didn't all join so we return false.
-      per_thread_timeout = timeout.to_f / work_pool_threads.length
-      work_pool_threads.none? { |thread| thread.join(per_thread_timeout).nil? }
     end
 
     def stop
@@ -194,74 +224,12 @@ module Hutch
       channel.nack(delivery_tag, false, false)
     end
 
-    def publish(routing_key, message, properties = {}, options = {})
-      ensure_connection!(routing_key, message)
-
-      serializer = options[:serializer] || @config[:serializer]
-
-      non_overridable_properties = {
-        routing_key:  routing_key,
-        timestamp:    @connection.current_timestamp,
-        content_type: serializer.content_type
-      }
-      properties[:message_id] ||= generate_id
-
-      payload = serializer.encode(message)
-      logger.info do
-        spec =
-          if serializer.binary?
-            "#{payload.bytesize} bytes message"
-          else
-            "message '#{payload}'"
-          end
-        "publishing #{spec} to #{routing_key}"
-      end
-
-      response = exchange.publish(payload, { persistent: true }
-        .merge(properties)
-        .merge(global_properties)
-        .merge(non_overridable_properties))
-
-      wait_for_confirms_or_raise(routing_key, message) if @config[:force_publisher_confirms]
-      response
+    def publish(*args)
+      @publisher.publish(*args)
     end
 
-    def publish_wait(routing_key, message, properties = {}, options = {})
-      ensure_connection!(routing_key, message)
-      if @config[:mq_wait_exchange].nil?
-        raise_publish_error('wait exchange not defined', routing_key, message)
-      end
-
-      serializer = options[:serializer] || @config[:serializer]
-
-      non_overridable_properties = {
-        routing_key: routing_key,
-        timestamp: @connection.current_timestamp,
-        content_type: serializer.content_type
-      }
-      properties[:message_id] ||= generate_id
-
-      payload = serializer.encode(message)
-
-      message_properties = { persistent: true }
-                           .merge(properties)
-                           .merge(global_properties)
-                           .merge(non_overridable_properties)
-      exchange = wait_exchanges.fetch(message_properties[:expiration].to_s, default_wait_exchange)
-      logger.info do
-        spec =
-          if serializer.binary?
-            "#{payload.bytesize} bytes message"
-          else
-            "message '#{payload}'"
-          end
-        "publishing #{spec} to '#{exchange.name}' with routing key '#{routing_key}'"
-      end
-
-      response = exchange.publish(payload, message_properties)
-
-      wait_for_confirms_or_raise(routing_key, message) if @config[:force_publisher_confirms]
-      response
+    def publish_wait(*args)
+      @publisher.publish_wait(*args)
     end
 
     def confirm_select(*args)
@@ -272,28 +240,12 @@ module Hutch
       channel.wait_for_confirms
     end
 
-    def wait_for_confirms_or_raise(routing_key, message)
-      unless channel.wait_for_confirms
-        raise_publish_error('Message not acknowledged by broker', routing_key, message)
-      end
-    end
-
+    # @return [Boolean] True if channel is set up to use publisher confirmations.
     def using_publisher_confirmations?
       channel.using_publisher_confirmations?
     end
 
     private
-
-    def raise_publish_error(reason, routing_key, message)
-      msg = "unable to publish - #{reason}. Message: #{JSON.dump(message)}, Routing key: #{routing_key}."
-      logger.error(msg)
-      raise PublishError, msg
-    end
-
-    def ensure_connection!(routing_key, message)
-      raise_publish_error('no connection to broker', routing_key, message) unless @connection
-      raise_publish_error('connection is closed', routing_key, message) unless @connection.open?
-    end
 
     def channel_broker
       Thread.current[CHANNEL_BROKER_KEY] ||= ChannelBroker.new(@connection, @config)
@@ -317,11 +269,7 @@ module Hutch
       {}.tap do |params|
         params[:host]               = @config[:mq_host]
         params[:port]               = @config[:mq_port]
-        params[:vhost]              = if @config[:mq_vhost] && '' != @config[:mq_vhost]
-                                        @config[:mq_vhost]
-                                      else
-                                        Hutch::Adapter::DEFAULT_VHOST
-                                      end
+        params[:vhost]              = @config[:mq_vhost].presence || Hutch::Adapter::DEFAULT_VHOST
         params[:username]           = @config[:mq_username]
         params[:password]           = @config[:mq_password]
         params[:tls]                = @config[:mq_tls]
@@ -344,7 +292,7 @@ module Hutch
     end
 
     def parse_uri
-      return unless @config[:uri] && !@config[:uri].empty?
+      return if @config[:uri].blank?
 
       u = URI.parse(@config[:uri])
 
@@ -362,24 +310,8 @@ module Hutch
       "#{scheme}://#{p[:username]}@#{p[:host]}:#{p[:port]}/#{p[:vhost].sub(%r{^/}, '')}"
     end
 
-    def work_pool_threads
-      channel_work_pool.threads || []
-    end
-
     def channel_work_pool
       channel.work_pool
-    end
-
-    def consumer_pool_size
-      @config[:consumer_pool_size]
-    end
-
-    def generate_id
-      SecureRandom.uuid
-    end
-
-    def global_properties
-      Hutch.global_properties.respond_to?(:call) ? Hutch.global_properties.call : Hutch.global_properties
     end
   end
 end

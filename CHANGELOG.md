@@ -1,4 +1,115 @@
-## 0.21.0 — (unreleased)
+## 0.24.0 — (unreleased)
+
+### Configurable Consumer Prefixes
+
+Hutch consumers now can use user-provided prefixes for consumer tags.
+
+Contributed by Dávid Lantos.
+
+GitHub issue: [#265](https://github.com/gocardless/hutch/pull/265)
+
+### Signal Handling in Workers
+
+Hutch will now handle several OS signals:
+
+ * `USR2` will log stack traces of all alive VM threads
+ * `QUIT` (except on JRuby), `INT`, `TERM` will cause Hutch daemon to shut down
+ 
+ Contributed by Olle Jonsson.
+
+GitHub issues: [#263](https://github.com/gocardless/hutch/pull/263), [#271](https://github.com/gocardless/hutch/pull/271)
+
+### Opbeat Tracer
+
+Hutch now provides a tracer implementation for [Opbeat](https://opbeat.com/).
+
+Contributed by Olle Jonsson.
+
+GitHub issue: [#262](https://github.com/gocardless/hutch/pull/262)
+
+### `HUTCH_URI` Support
+
+The `HUTCH_URI` environment variable now can be used to configure
+Hutch connection URI.
+
+Contributed by Sam Stickland.
+
+GitHub issue: [#270](https://github.com/gocardless/hutch/pull/270)
+
+
+## 0.23.1 — October 20th, 2016
+
+This release contains a **breaking change** in the error
+handlers interface.
+
+### All Message Properties Passed to Error Handlers
+
+Previously error handlers were provided a message ID as first
+argument to `ErrorHandler#handle`. Now it is a hash of all message
+properties.
+
+This is a **breaking public API change**. If you do not use custom
+error handlers, you are not affected.
+
+Contributed by Pierre-Louis Gottfrois.
+
+GH issue: [hutch#238](https://github.com/gocardless/hutch/pull/238)
+
+### Opbeat Error Handler
+
+Contributed by Olle Jonsson.
+
+
+## 0.22.1 — June 7th, 2016
+
+### Message Payload is Reported to Sentry
+
+Contributed by Matt Thompson.
+
+### Daemonization Flag Ignored on JRuby
+
+Hutch will no longer try to daemonize its process on JRuby
+(since it is not supported) and will emit a warning instead.
+
+Contributed by Olle Jonsson.
+
+### Custom Setup Steps in Hutch::Worker
+
+`Hutch::Worker` now accepts a list of callables that are invoked
+after queue setup.
+
+Contributed by Kelly Stannard.
+
+### More Flexible and Better Abstracted Hutch::Broker
+
+`Hutch::Broker` was refactored with some bits extracted into separate
+classes or methods, making them easier to override.
+
+Contributed by Aleksandar Ivanov and Ryan Hosford.
+
+### Configurable Consumer Thread Pool Exception Handling (MRI only)
+
+`:consumer_pool_abort_on_exception` is a new option
+(defaults to `false`) which defines whether Bunny's
+consumer work pool threads should abort on exception.
+The option is ignored on JRuby.
+
+Contributed by Seamus Abshere.
+
+### Worker: Log received messages using level DEBUG instead of INFO
+
+Received messages used to be logged using severity level INFO. 
+This has been lowered to DEBUG.
+
+Contributed by Jesper Josefsson.
+
+### Refactoring
+
+Olle Jonsson and Kelly Stannard have contributed
+multiple internal improvements that have no behaviour changes.
+
+
+## 0.21.0 — February 7th, 2016
 
 ### JRuby Compatibility Restored
 

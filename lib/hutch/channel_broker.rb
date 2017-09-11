@@ -6,6 +6,8 @@ module Hutch
     include Logging
     include BrokerHandlers
 
+    attr_accessor :connection
+
     def initialize(connection, config)
       @connection = connection
       @config = config || Hutch::Config
@@ -51,23 +53,33 @@ module Hutch
       @channel && @channel.active
     end
 
-    def open_channel!
-      logger.info "opening rabbitmq channel with pool size #{consumer_pool_size}"
-      @channel = @connection.create_channel(nil, consumer_pool_size).tap do |ch|
-        @connection.prefetch_channel(ch, @config[:channel_prefetch])
+    def open_channel
+      logger.info "opening rabbitmq channel with pool size #{consumer_pool_size}, abort on exception #{consumer_pool_abort_on_exception}"
+      connection.create_channel(nil, consumer_pool_size, consumer_pool_abort_on_exception).tap do |ch|
+        connection.prefetch_channel(ch, @config[:channel_prefetch])
         if @config[:publisher_confirms] || @config[:force_publisher_confirms]
           logger.info 'enabling publisher confirms'
           ch.confirm_select
         end
-
-        exchange_name = @config[:mq_exchange]
-        exchange_options = { durable: true }.merge @config[:mq_exchange_options]
-        logger.info "using topic exchange '#{exchange_name}'"
-
-        with_bunny_precondition_handler('exchange') do
-          @exchange = ch.topic(exchange_name, exchange_options)
-        end
       end
+    end
+
+    def open_channel!
+      @channel = open_channel
+    end
+
+    def declare_exchange(ch = channel)
+      exchange_name = @config[:mq_exchange]
+      exchange_options = { durable: true }.merge(@config[:mq_exchange_options])
+      logger.info "using topic exchange '#{exchange_name}'"
+
+      with_bunny_precondition_handler('exchange') do
+        ch.topic(exchange_name, exchange_options)
+      end
+    end
+
+    def declare_exchange!(*args)
+      @exchange = declare_exchange(*args)
     end
 
     private
@@ -120,6 +132,10 @@ module Hutch
 
     def consumer_pool_size
       @config[:consumer_pool_size]
+    end
+
+    def consumer_pool_abort_on_exception
+      @config[:consumer_pool_abort_on_exception]
     end
   end
 end

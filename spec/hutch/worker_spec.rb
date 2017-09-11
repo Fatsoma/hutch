@@ -10,7 +10,19 @@ describe Hutch::Worker do
   end
   let(:consumers) { [consumer, double('Consumer')] }
   let(:broker) { Hutch::Broker.new }
-  subject(:worker) { Hutch::Worker.new(broker, consumers) }
+  let(:setup_procs) { Array.new(2) { Proc.new {} } }
+  subject(:worker) { Hutch::Worker.new(broker, consumers, setup_procs) }
+
+  describe ".#run" do
+    it "calls each setup proc" do
+      setup_procs.each { |prc| expect(prc).to receive(:call) }
+      allow(worker).to receive(:setup_queues)
+      allow(Hutch::Waiter).to receive(:wait_until_signaled)
+      allow(broker).to receive(:stop)
+
+      worker.run
+    end
+  end
 
   describe '#setup_queues' do
     it 'sets up queues for each of the consumers' do
@@ -23,7 +35,6 @@ describe Hutch::Worker do
 
   describe '#setup_queue' do
     let(:queue) { double('Queue', bind: nil, subscribe: nil) }
-    before { allow(worker).to receive_messages(consumer_queue: queue) }
     before { allow(broker).to receive_messages(queue: queue, bind_queue: nil) }
 
     it 'creates a queue' do
@@ -37,8 +48,26 @@ describe Hutch::Worker do
     end
 
     it 'sets up a subscription' do
-      expect(queue).to receive(:subscribe).with(manual_ack: true)
+      expect(queue).to receive(:subscribe).with(consumer_tag: %r(^hutch\-.{36}$), manual_ack: true)
       worker.setup_queue(consumer)
+    end
+
+    context 'with a configured consumer tag prefix' do
+      before { Hutch::Config.set(:consumer_tag_prefix, 'appname') }
+
+      it 'sets up a subscription with the configured tag prefix' do
+        expect(queue).to receive(:subscribe).with(consumer_tag: %r(^appname\-.{36}$), manual_ack: true)
+        worker.setup_queue(consumer)
+      end
+    end
+
+    context 'with a configured consumer tag prefix that is too long' do
+      let(:maximum_size) { 255 - SecureRandom.uuid.size - 1 }
+      before { Hutch::Config.set(:consumer_tag_prefix, 'a'.*(maximum_size + 1)) }
+
+      it 'raises an error' do
+        expect { worker.setup_queue(consumer) }.to raise_error(/Tag must be 255 bytes long at most/)
+      end
     end
   end
 

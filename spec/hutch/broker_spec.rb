@@ -2,8 +2,16 @@ require 'spec_helper'
 require 'hutch/broker'
 
 describe Hutch::Broker do
-  let(:config) { deep_copy(Hutch::Config.user_config) }
-  subject(:broker) { Hutch::Broker.new(config) }
+  before do
+    Hutch::Config.initialize(client_logger: Hutch::Logging.logger)
+    @config = Hutch::Config.to_hash
+  end
+  let!(:config) { @config }
+  after do
+    Hutch::Config.instance_variable_set(:@config, nil)
+    Hutch::Config.initialize
+  end
+  let(:broker) { Hutch::Broker.new(config) }
 
   describe '#connect' do
     before { allow(broker).to receive(:set_up_amqp_connection) }
@@ -53,83 +61,139 @@ describe Hutch::Broker do
     end
   end
 
-  describe '#set_up_amqp_connection', rabbitmq: true do
-    context 'with valid details' do
-      before { broker.set_up_amqp_connection }
-      after  { broker.disconnect }
+  describe '#set_up_amqp_connection' do
+    it 'opens a connection, channel and declares an exchange' do
+      expect(broker).to receive(:open_connection!).ordered
+      expect(broker).to receive(:open_channel!).ordered
+      expect(broker).to receive(:declare_exchange!).ordered
 
-      describe '#connection', adapter: :bunny do
-        subject { super().connection }
-        it { is_expected.to be_a Hutch::Adapters::BunnyAdapter }
-      end
+      broker.set_up_amqp_connection
+    end
+  end
 
-      describe '#connection', adapter: :march_hare do
-        subject { super().connection }
-        it { is_expected.to be_a Hutch::Adapters::MarchHareAdapter }
-      end
+  describe '#open_connection', rabbitmq: true do
+    describe 'return value' do
+      subject { broker.open_connection }
+      after { subject.close }
 
-      describe '#channel', adapter: :bunny do
-        subject { super().channel }
-        it { is_expected.to be_a Bunny::Channel }
-      end
-
-      describe '#channel', adapter: :march_hare do
-        subject { super().channel }
-        it { is_expected.to be_a MarchHare::Channel }
-      end
-
-      describe '#exchange', adapter: :bunny do
-        subject { super().exchange }
-        it { is_expected.to be_a Bunny::Exchange }
-      end
-
-      describe '#exchange', adapter: :march_hare do
-        subject { super().exchange }
-        it { is_expected.to be_a MarchHare::Exchange }
-      end
+      it(nil, adapter: :bunny)      { is_expected.to be_a Hutch::Adapters::BunnyAdapter }
+      it(nil, adapter: :march_hare) { is_expected.to be_a Hutch::Adapters::MarchHareAdapter }
     end
 
     context 'when given invalid details' do
       before { config[:mq_host] = 'notarealhost' }
-      let(:set_up_amqp_connection) { -> { broker.set_up_amqp_connection } }
+      it { expect { broker.open_connection }.to raise_error(StandardError) }
+    end
 
-      specify { expect(set_up_amqp_connection).to raise_error }
+    it 'does not set #connection' do
+      connection = broker.open_connection
+
+      expect(broker.connection).to be_nil
+
+      connection.close
+    end
+  end
+
+  describe '#open_connection!' do
+    it 'sets the #connection to #open_connection' do
+      connection = double('connection').as_null_object
+
+      expect(broker).to receive(:open_connection).and_return(connection)
+
+      broker.open_connection!
+
+      expect(broker.connection).to eq(connection)
+    end
+  end
+
+  describe '#open_channel', rabbitmq: true do
+    before { broker.open_connection! }
+    after { broker.disconnect }
+
+    describe 'return value' do
+      subject { broker.open_channel }
+
+      it(nil, adapter: :bunny)      { is_expected.to be_a Bunny::Channel }
+      it(nil, adapter: :march_hare) { is_expected.to be_a MarchHare::Channel }
+    end
+
+    it 'does not set #channel' do
+      broker.open_channel
+      expect(broker.channel).to be_nil
     end
 
     context 'with channel_prefetch set' do
       let(:prefetch_value) { 1 }
       before { config[:channel_prefetch] = prefetch_value }
-      after  { broker.disconnect }
 
       it "sets channel's prefetch", adapter: :bunny do
-        expect_any_instance_of(Bunny::Channel)
-          .to receive(:prefetch).with(prefetch_value)
-        broker.set_up_amqp_connection
+        expect_any_instance_of(Bunny::Channel).to receive(:prefetch).with(prefetch_value)
+        broker.open_channel
       end
 
       it "sets channel's prefetch", adapter: :march_hare do
-        expect_any_instance_of(MarchHare::Channel)
-          .to receive(:prefetch=).with(prefetch_value)
-        broker.set_up_amqp_connection
+        expect_any_instance_of(MarchHare::Channel).to receive(:prefetch=).with(prefetch_value)
+        broker.open_channel
       end
     end
 
     context 'with force_publisher_confirms set' do
       let(:force_publisher_confirms_value) { true }
       before { config[:force_publisher_confirms] = force_publisher_confirms_value }
-      after  { broker.disconnect }
 
       it 'waits for confirmation', adapter: :bunny do
-        expect_any_instance_of(Bunny::Channel)
-          .to receive(:confirm_select)
-        broker.set_up_amqp_connection
+        expect_any_instance_of(Bunny::Channel).to receive(:confirm_select)
+        broker.open_channel
       end
 
       it 'waits for confirmation', adapter: :march_hare do
-        expect_any_instance_of(MarchHare::Channel)
-          .to receive(:confirm_select)
-        broker.set_up_amqp_connection
+        expect_any_instance_of(MarchHare::Channel).to receive(:confirm_select)
+        broker.open_channel
       end
+    end
+  end
+
+  describe '#open_channel!' do
+    it 'sets the #channel to #open_channel' do
+      channel = double('channel').as_null_object
+
+      expect(broker).to receive(:open_channel).and_return(channel)
+
+      broker.open_channel!
+
+      expect(broker.channel).to eq(channel)
+    end
+  end
+
+  describe '#declare_exchange' do
+    before do
+      broker.open_connection!
+      broker.open_channel!
+    end
+    after { broker.disconnect }
+
+    describe 'return value' do
+      subject { broker.declare_exchange }
+
+      it(nil, adapter: :bunny)      { is_expected.to be_a Bunny::Exchange }
+      it(nil, adapter: :march_hare) { is_expected.to be_a MarchHare::Exchange }
+    end
+
+    it 'does not set #exchange' do
+      broker.declare_exchange
+      expect(broker.exchange).to be_nil
+    end
+  end
+
+  describe '#declare_exchange!' do
+    it 'sets the #exchange to #declare_exchange' do
+      exchange = double('exchange').as_null_object
+
+      expect(broker).to receive(:declare_exchange).and_return(exchange)
+
+      broker.declare_exchange!
+
+      expect(broker.exchange).to eq(exchange)
     end
   end
 
@@ -141,12 +205,12 @@ describe Hutch::Broker do
     after  { broker.disconnect }
 
     describe '#default_wait_exchange', adapter: :bunny do
-      subject { super().default_wait_exchange }
+      subject { broker.default_wait_exchange }
       it { is_expected.to be_a Bunny::Exchange }
     end
 
     describe '#default_wait_exchange', adapter: :march_hare do
-      subject { super().default_wait_exchange }
+      subject { broker.default_wait_exchange }
       it { is_expected.to be_a MarchHare::Exchange }
     end
 
@@ -190,7 +254,7 @@ describe Hutch::Broker do
       after  { broker.disconnect }
 
       describe '#api_client' do
-        subject { super().api_client }
+        subject { broker.api_client }
         it { is_expected.to be_a CarrotTop }
       end
     end
@@ -200,7 +264,7 @@ describe Hutch::Broker do
       after  { broker.disconnect }
       let(:set_up_api_connection) { -> { broker.set_up_api_connection } }
 
-      specify { expect(set_up_api_connection).to raise_error }
+      specify { expect(set_up_api_connection).to raise_error(StandardError) }
     end
   end
 
@@ -242,7 +306,7 @@ describe Hutch::Broker do
   end
 
   describe '#bind_queue' do
-    around { |example| broker.connect { example.run } }
+    around { |example| broker.connect(host: '127.0.0.1') { example.run } }
 
     let(:routing_keys) { %w( a b c ) }
     let(:queue) { double('Queue', bind: nil, unbind: nil, name: 'consumer') }
@@ -272,21 +336,6 @@ describe Hutch::Broker do
         broker.bind_queue(queue, [routing_key])
         expect(broker.bindings).to include(queue.name => [routing_key])
       end
-    end
-  end
-
-  describe '#wait_on_threads' do
-    let(:thread) { double('Thread') }
-    before { allow(broker).to receive(:work_pool_threads).and_return(threads) }
-
-    context 'when all threads finish within the timeout' do
-      let(:threads) { [double(join: thread), double(join: thread)] }
-      specify { expect(broker.wait_on_threads(1)).to be_truthy }
-    end
-
-    context 'when timeout expires for one thread' do
-      let(:threads) { [double(join: thread), double(join: nil)] }
-      specify { expect(broker.wait_on_threads(1)).to be_falsey }
     end
   end
 
@@ -330,12 +379,12 @@ describe Hutch::Broker do
 
       it 'publishes to the exchange' do
         expect(broker.exchange).to receive(:publish).once
-        broker.publish('test.key', 'message')
+        broker.publish('test.key', { key: 'value' })
       end
 
       it 'sets default properties' do
         expect(broker.exchange).to receive(:publish).with(
-          JSON.dump('message'),
+          JSON.dump({ key: 'value' }),
           hash_including(
             persistent: true,
             routing_key: 'test.key',
@@ -343,12 +392,12 @@ describe Hutch::Broker do
           )
         )
 
-        broker.publish('test.key', 'message')
+        broker.publish('test.key', { key: 'value' })
       end
 
       it 'allows passing message properties' do
         expect(broker.exchange).to receive(:publish).once
-        broker.publish('test.key', 'message', expiration: '2000', persistent: false)
+        broker.publish('test.key', { key: 'value' }, { expiration: '2000', persistent: false })
       end
 
       context 'when there are global properties' do
@@ -359,8 +408,8 @@ describe Hutch::Broker do
 
           it 'merges the properties' do
             expect(broker.exchange)
-              .to receive(:publish).with('"message"', hash_including(app_id: 'app'))
-            broker.publish('test.key', 'message')
+              .to receive(:publish).with('{"key":"value"}', hash_including(app_id: 'app'))
+            broker.publish('test.key', { key: 'value' })
           end
         end
 
@@ -371,8 +420,8 @@ describe Hutch::Broker do
 
           it 'calls the proc and merges the properties' do
             expect(broker.exchange)
-              .to receive(:publish).with('"message"', hash_including(app_id: 'app'))
-            broker.publish('test.key', 'message')
+              .to receive(:publish).with('{"key":"value"}', hash_including(app_id: 'app'))
+            broker.publish('test.key', { key: 'value' })
           end
         end
       end
@@ -381,13 +430,13 @@ describe Hutch::Broker do
         it 'does not wait for confirms on the channel', adapter: :bunny do
           expect_any_instance_of(Bunny::Channel)
             .to_not receive(:wait_for_confirms)
-          broker.publish('test.key', 'message')
+          broker.publish('test.key', { key: 'value' })
         end
 
         it 'does not wait for confirms on the channel', adapter: :march_hare do
           expect_any_instance_of(MarchHare::Channel)
             .to_not receive(:wait_for_confirms)
-          broker.publish('test.key', 'message')
+          broker.publish('test.key', { key: 'value' })
         end
       end
 
@@ -402,27 +451,29 @@ describe Hutch::Broker do
           expect_any_instance_of(Bunny::Channel)
             .to receive(:wait_for_confirms)
             .and_return(true)
-          broker.publish('test.key', 'message')
+          broker.publish('test.key', { key: 'value' })
         end
 
         it 'waits for confirms on the channel', adapter: :march_hare do
           expect_any_instance_of(MarchHare::Channel)
             .to receive(:wait_for_confirms)
             .and_return(true)
-          broker.publish('test.key', 'message')
+          broker.publish('test.key', { key: 'value' })
         end
       end
     end
 
     context 'without a valid connection' do
+      before { broker.set_up_amqp_connection; broker.disconnect }
+
       it 'raises an exception' do
-        expect { broker.publish('test.key', 'message') }
+        expect { broker.publish('test.key', { key: 'value' }) }
           .to raise_exception(Hutch::PublishError)
       end
 
       it 'logs an error' do
         expect(broker.logger).to receive(:error)
-        broker.publish('test.key', 'message') rescue nil
+        broker.publish('test.key', { key: 'value' }) rescue nil
       end
     end
   end
@@ -441,12 +492,12 @@ describe Hutch::Broker do
         context 'with no expiration' do
           it 'publishes to the exchange' do
             expect(broker.default_wait_exchange).to receive(:publish).once
-            broker.publish_wait('test.key', 'message')
+            broker.publish_wait('test.key', { key: 'value' })
           end
 
           it 'sets default properties' do
             expect(broker.default_wait_exchange).to receive(:publish).with(
-              JSON.dump('message'),
+              JSON.dump({ key: 'value' }),
               hash_including(
                 persistent: true,
                 routing_key: 'test.key',
@@ -454,12 +505,12 @@ describe Hutch::Broker do
               )
             )
 
-            broker.publish_wait('test.key', 'message')
+            broker.publish_wait('test.key', { key: 'value' })
           end
 
           it 'allows passing message properties' do
             expect(broker.default_wait_exchange).to receive(:publish).once
-            broker.publish_wait('test.key', 'message', persistent: false)
+            broker.publish_wait('test.key', { key: 'value' }, { persistent: false })
           end
 
           context 'when there are global properties' do
@@ -470,8 +521,8 @@ describe Hutch::Broker do
 
               it 'merges the properties' do
                 expect(broker.default_wait_exchange)
-                  .to receive(:publish).with('"message"', hash_including(app_id: 'app'))
-                broker.publish_wait('test.key', 'message')
+                  .to receive(:publish).with('{"key":"value"}', hash_including(app_id: 'app'))
+                broker.publish_wait('test.key', { key: 'value' })
               end
             end
 
@@ -482,8 +533,8 @@ describe Hutch::Broker do
 
               it 'calls the proc and merges the properties' do
                 expect(broker.default_wait_exchange)
-                  .to receive(:publish).with('"message"', hash_including(app_id: 'app'))
-                broker.publish_wait('test.key', 'message')
+                  .to receive(:publish).with('{"key":"value"}', hash_including(app_id: 'app'))
+                broker.publish_wait('test.key', { key: 'value' })
               end
             end
           end
@@ -493,12 +544,12 @@ describe Hutch::Broker do
           let(:expiration) { expiration_suffices.first }
           it 'publishes to the exchange' do
             expect(broker.wait_exchanges[expiration.to_s]).to receive(:publish).once
-            broker.publish_wait('test.key', 'message', expiration: expiration)
+            broker.publish_wait('test.key', { key: 'value' }, { expiration: expiration })
           end
 
           it 'does not publish to default exchange' do
             expect(broker.default_wait_exchange).not_to receive(:publish)
-            broker.publish_wait('test.key', 'message', expiration: expiration)
+            broker.publish_wait('test.key', { key: 'value' }, { expiration: expiration })
           end
         end
 
@@ -506,14 +557,14 @@ describe Hutch::Broker do
           let(:expiration) { (expiration_suffices.map(&:to_i).max + 10_000).to_s }
           it 'publishes to the default exchange' do
             expect(broker.default_wait_exchange).to receive(:publish).once
-            broker.publish_wait('test.key', 'message', expiration: expiration)
+            broker.publish_wait('test.key', { key: 'value' }, { expiration: expiration })
           end
 
           it 'does not publish to suffixed exchanges' do
             broker.wait_exchanges.each do |exchange|
               expect(exchange).not_to receive(:publish)
             end
-            broker.publish_wait('test.key', 'message', expiration: expiration)
+            broker.publish_wait('test.key', { key: 'value' }, { expiration: expiration })
           end
         end
 
@@ -521,13 +572,13 @@ describe Hutch::Broker do
           it 'does not wait for confirms on the channel', adapter: :bunny do
             expect_any_instance_of(Bunny::Channel)
               .to_not receive(:wait_for_confirms)
-            broker.publish_wait('test.key', 'message')
+            broker.publish_wait('test.key', { key: 'value' })
           end
 
           it 'does not wait for confirms on the channel', adapter: :march_hare do
             expect_any_instance_of(MarchHare::Channel)
               .to_not receive(:wait_for_confirms)
-            broker.publish_wait('test.key', 'message')
+            broker.publish_wait('test.key', { key: 'value' })
           end
         end
 
@@ -542,14 +593,14 @@ describe Hutch::Broker do
             expect_any_instance_of(Bunny::Channel)
               .to receive(:wait_for_confirms)
               .and_return(true)
-            broker.publish_wait('test.key', 'message')
+            broker.publish_wait('test.key', { key: 'value' })
           end
 
           it 'waits for confirms on the channel', adapter: :march_hare do
             expect_any_instance_of(MarchHare::Channel)
               .to receive(:wait_for_confirms)
               .and_return(true)
-            broker.publish_wait('test.key', 'message')
+            broker.publish_wait('test.key', { key: 'value' })
           end
         end
       end
@@ -559,26 +610,26 @@ describe Hutch::Broker do
         before { broker.set_up_amqp_connection }
         after  { broker.disconnect }
         it 'raises an exception' do
-          expect { broker.publish_wait('test.key', 'message') }
+          expect { broker.publish_wait('test.key', { key: 'value' }) }
             .to raise_exception(Hutch::PublishError, /wait exchange not defined/)
         end
 
         it 'logs an error' do
           expect(broker.logger).to receive(:error)
-          broker.publish_wait('test.key', 'message') rescue nil
+          broker.publish_wait('test.key', { key: 'value' }) rescue nil
         end
       end
     end
 
     context 'without a valid connection' do
       it 'raises an exception' do
-        expect { broker.publish_wait('test.key', 'message') }
+        expect { broker.publish_wait('test.key', { key: 'value' }) }
           .to raise_exception(Hutch::PublishError, /no connection to broker/)
       end
 
       it 'logs an error' do
         expect(broker.logger).to receive(:error)
-        broker.publish_wait('test.key', 'message') rescue nil
+        broker.publish_wait('test.key', { key: 'value' }) rescue nil
       end
     end
   end

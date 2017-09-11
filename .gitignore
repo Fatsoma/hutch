@@ -5,3 +5,6 @@ Gemfile.lock
 .ruby-gemset
 .idea
 coverage
+.yardoc
+doc
+gemfiles/Gemfile.*.lock
