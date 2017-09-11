@@ -52,15 +52,12 @@ describe Hutch::Worker do
     let(:properties) { double('Properties', message_id: nil, content_type: 'application/json') }
     let(:handle_message) do
       worker.handle_message(consumer, delivery_info, properties, payload)
-      worker.handle_actions
     end
     before { allow(consumer).to receive_messages(new: consumer_instance) }
     before { allow(broker).to receive(:ack) }
     before { allow(broker).to receive(:nack) }
     before { allow(consumer_instance).to receive(:broker=) }
     before { allow(consumer_instance).to receive(:delivery_info=) }
-    before { worker.register_action_handlers }
-    after { Thread.main[:action_queue].clear }
 
     context 'when the consumer processes without an exception' do
       before { allow(consumer_instance).to receive(:process) }

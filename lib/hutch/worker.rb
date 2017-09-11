@@ -23,8 +23,6 @@ module Hutch
       # Set up signal handlers for graceful shutdown
       register_signal_handlers
 
-      register_action_handlers
-
       setup_queues
 
       main_loop
@@ -35,17 +33,11 @@ module Hutch
         # Binds shutdown listener to notify main thread if channel was closed
         bind_shutdown_handler
 
-        until shutdown_not_called?(0.1)
-          handle_actions
-          handle_signals
-        end
+        handle_signals until shutdown_not_called?(0.1)
       else
         # Take a break from Thread#join every 0.1 seconds to check if we've
-        # been sent any actions or signals
-        until @broker.wait_on_threads(0.1)
-          handle_actions
-          handle_signals
-        end
+        # been sent any signals
+        handle_signals until @broker.wait_on_threads(0.1)
       end
     end
 
@@ -68,26 +60,6 @@ module Hutch
       if signal
         logger.info "caught sig#{signal.downcase}, stopping hutch..."
         stop
-      end
-    end
-
-    # Register action queue for acknowledging messages in main thread
-    # Messages consumed come from main thread so acks and nacks need to use the
-    # same channel
-    def register_action_handlers
-      Thread.main[:action_queue] = Queue.new
-    end
-
-    # Handle all pending message acknowledgement actions
-    def handle_actions
-      until Thread.main[:action_queue].empty?
-        action, delivery_info, properties, ex = Thread.main[:action_queue].pop
-        case action
-        when :ack
-          @broker.ack(delivery_info.delivery_tag)
-        when :nack
-          acknowledge_error(delivery_info, properties, @broker, ex)
-        end
       end
     end
 
@@ -148,9 +120,9 @@ module Hutch
       consumer_instance.broker = @broker
       consumer_instance.delivery_info = delivery_info
       with_tracing(consumer_instance).handle(message)
-      Thread.main[:action_queue] << [:ack, delivery_info, properties, nil]
+      @broker.ack(delivery_info.delivery_tag)
     rescue => ex
-      Thread.main[:action_queue] << [:nack, delivery_info, properties, ex]
+      acknowledge_error(delivery_info, properties, @broker, ex)
       handle_error(properties.message_id, payload, consumer, ex)
     end
 
