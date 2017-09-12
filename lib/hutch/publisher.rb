@@ -1,16 +1,23 @@
 require 'securerandom'
+require 'forwardable'
 require 'hutch/logging'
 require 'hutch/exceptions'
 
 module Hutch
   class Publisher
     include Logging
-    attr_reader :connection, :channel, :exchange, :config
+    extend Forwardable
 
-    def initialize(connection, channel, exchange, config = Hutch::Config)
+    attr_reader :connection, :broker, :config
+    def_delegators :broker,
+                   :channel,
+                   :exchange,
+                   :default_wait_exchange,
+                   :wait_exchanges
+
+    def initialize(connection, broker, config = Hutch::Config)
       @connection = connection
-      @channel    = channel
-      @exchange   = exchange
+      @broker     = broker
       @config     = config
     end
 

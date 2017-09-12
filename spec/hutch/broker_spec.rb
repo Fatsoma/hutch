@@ -372,7 +372,7 @@ describe Hutch::Broker do
     end
   end
 
-  describe '#publish' do
+  describe '#publish', rabbitmq: true do
     context 'with a valid connection' do
       before { broker.set_up_amqp_connection }
       after  { broker.disconnect }
@@ -464,7 +464,7 @@ describe Hutch::Broker do
     end
 
     context 'without a valid connection' do
-      before { broker.set_up_amqp_connection; broker.disconnect }
+      before { broker.declare_publisher! }
 
       it 'raises an exception' do
         expect { broker.publish('test.key', { key: 'value' }) }
@@ -472,13 +472,13 @@ describe Hutch::Broker do
       end
 
       it 'logs an error' do
-        expect(broker.logger).to receive(:error)
+        expect(Hutch::Logging.logger).to receive(:error)
         broker.publish('test.key', { key: 'value' }) rescue nil
       end
     end
   end
 
-  describe '#publish_wait' do
+  describe '#publish_wait', rabbitmq: true do
     context 'with a valid connection' do
       context 'with a wait exchange defined' do
         let(:expiration_suffices) { %w(10000 30000) }
@@ -561,7 +561,7 @@ describe Hutch::Broker do
           end
 
           it 'does not publish to suffixed exchanges' do
-            broker.wait_exchanges.each do |exchange|
+            broker.wait_exchanges.each do |_name, exchange|
               expect(exchange).not_to receive(:publish)
             end
             broker.publish_wait('test.key', { key: 'value' }, { expiration: expiration })
@@ -615,20 +615,21 @@ describe Hutch::Broker do
         end
 
         it 'logs an error' do
-          expect(broker.logger).to receive(:error)
+          expect(Hutch::Logging.logger).to receive(:error)
           broker.publish_wait('test.key', { key: 'value' }) rescue nil
         end
       end
     end
 
     context 'without a valid connection' do
+      before { broker.declare_publisher! }
       it 'raises an exception' do
         expect { broker.publish_wait('test.key', { key: 'value' }) }
           .to raise_exception(Hutch::PublishError, /no connection to broker/)
       end
 
       it 'logs an error' do
-        expect(broker.logger).to receive(:error)
+        expect(Hutch::Logging.logger).to receive(:error)
         broker.publish_wait('test.key', { key: 'value' }) rescue nil
       end
     end

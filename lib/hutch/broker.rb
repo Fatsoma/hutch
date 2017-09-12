@@ -67,6 +67,7 @@ module Hutch
       @connection.close if @connection
       @connection = nil
       @api_client = nil
+      @publisher = nil
     end
 
     # Connect to RabbitMQ via AMQP
@@ -114,7 +115,7 @@ module Hutch
     end
 
     def declare_publisher!
-      @publisher = Hutch::Publisher.new(connection, channel, exchange, @config)
+      @publisher = Hutch::Publisher.new(connection, self, @config)
     end
 
     # Set up the connection to the RabbitMQ management API. Unfortunately, this
