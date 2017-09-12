@@ -26,6 +26,7 @@ group :development, :test do
   gem 'airbrake', '~> 5.0'
   gem 'opbeat', '~> 3.0.9'
   gem 'rb-inotify', '~> 0.9', require: false
+  gem 'rspec_junit_formatter', '~> 0.3.0'
 end
 
 group :development, :darwin do
