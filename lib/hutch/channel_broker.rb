@@ -24,11 +24,13 @@ module Hutch
     def reconnect
       disconnect
       open_channel!
+      declare_exchange!
     end
 
     def channel
       return @channel if active
       reconnect
+      @channel
     end
 
     def exchange

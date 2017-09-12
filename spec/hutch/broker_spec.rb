@@ -117,7 +117,7 @@ describe Hutch::Broker do
       it(nil, adapter: :march_hare) { is_expected.to be_a MarchHare::Channel }
     end
 
-    it 'does not set #channel' do
+    skip 'does not set #channel' do
       broker.open_channel
       expect(broker.channel).to be_nil
     end
@@ -154,18 +154,26 @@ describe Hutch::Broker do
   end
 
   describe '#open_channel!' do
+    let(:connection) { double('connection').as_null_object }
+    let(:channel) { double('channel').as_null_object }
+    let(:channel_broker) { Hutch::ChannelBroker.new(connection, config) }
+
+    before do
+      allow(broker).to receive(:channel_broker).and_return(channel_broker)
+      allow(channel_broker).to receive(:open_channel).and_return(channel)
+      allow(channel_broker).to receive(:active).and_return(true)
+    end
+
+    subject! { broker.open_channel! }
+
     it 'sets the #channel to #open_channel' do
-      channel = double('channel').as_null_object
-
-      expect(broker).to receive(:open_channel).and_return(channel)
-
-      broker.open_channel!
-
+      expect(broker).to have_received(:channel_broker)
+      expect(channel_broker).to have_received(:open_channel)
       expect(broker.channel).to eq(channel)
     end
   end
 
-  describe '#declare_exchange' do
+  describe '#declare_exchange', rabbitmq: true do
     before do
       broker.open_connection!
       broker.open_channel!
@@ -186,13 +194,21 @@ describe Hutch::Broker do
   end
 
   describe '#declare_exchange!' do
+    let(:connection) { double('connection').as_null_object }
+    let(:exchange) { double('exchange').as_null_object }
+    let(:channel_broker) { Hutch::ChannelBroker.new(connection, config) }
+
+    before do
+      allow(broker).to receive(:channel_broker).and_return(channel_broker)
+      allow(channel_broker).to receive(:declare_exchange).and_return(exchange)
+      allow(channel_broker).to receive(:active).and_return(true)
+    end
+
+    subject! { broker.declare_exchange! }
+
     it 'sets the #exchange to #declare_exchange' do
-      exchange = double('exchange').as_null_object
-
-      expect(broker).to receive(:declare_exchange).and_return(exchange)
-
-      broker.declare_exchange!
-
+      expect(broker).to have_received(:channel_broker)
+      expect(channel_broker).to have_received(:declare_exchange)
       expect(broker.exchange).to eq(exchange)
     end
   end
