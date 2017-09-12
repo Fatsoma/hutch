@@ -30,6 +30,11 @@ jobs:
           paths:
             - ./vendor/bundle
           key: v1-dependencies-{{ checksum "Gemfile.lock" }}
+
+      # Wait for RabbitMQ to be available
+      - run:
+          name: wait for rabbitmq
+          command: while ! ss -lnt | grep ":5672\>" ; do sleep 0.5 ; done
         
       # run tests!
       - run:
