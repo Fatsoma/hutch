@@ -91,7 +91,7 @@ describe Hutch::Worker do
         expect(broker).to_not receive(:nack)
         expect(broker).to receive(:requeue)
 
-        worker.handle_message(consumer, delivery_info, properties, payload)
+        handle_message
       end
     end
 
