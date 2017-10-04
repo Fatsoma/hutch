@@ -1,7 +1,6 @@
 require 'hutch/message'
 require 'hutch/logging'
 require 'hutch/broker'
-require 'hutch/acknowledgements/nack_on_all_failures'
 require 'hutch/waiter'
 require 'carrot-top'
 require 'securerandom'
@@ -12,6 +11,7 @@ module Hutch
 
     def initialize(broker, consumers, setup_procs)
       @broker        = broker
+      self.waiter    = Waiter.new(broker)
       self.consumers = consumers
       self.setup_procs = setup_procs
     end
@@ -20,10 +20,12 @@ module Hutch
     # process the messages in their respective queues indefinitely. This method
     # never returns.
     def run
+      waiter.register_handlers
+
       setup_queues
       setup_procs.each(&:call)
 
-      Waiter.wait_until_signaled
+      waiter.wait_until_signaled
 
       stop
     end
@@ -68,9 +70,9 @@ module Hutch
       consumer_instance.broker = @broker
       consumer_instance.delivery_info = delivery_info
       with_tracing(consumer_instance).handle(message)
-      @broker.ack(delivery_info.delivery_tag)
+      waiter.push_action(:ack, delivery_info, properties, nil)
     rescue => ex
-      acknowledge_error(delivery_info, properties, @broker, ex)
+      waiter.push_action(:nack, delivery_info, properties, ex)
       handle_error(properties, payload, consumer, ex)
     end
 
@@ -84,14 +86,6 @@ module Hutch
       end
     end
 
-    def acknowledge_error(delivery_info, properties, broker, ex)
-      acks = error_acknowledgements +
-        [Hutch::Acknowledgements::NackOnAllFailures.new]
-      acks.find do |backend|
-        backend.handle(delivery_info, properties, broker, ex)
-      end
-    end
-
     def consumers=(val)
       if val.empty?
         logger.warn "no consumer loaded, ensure there's no configuration issue"
@@ -99,13 +93,9 @@ module Hutch
       @consumers = val
     end
 
-    def error_acknowledgements
-      Hutch::Config[:error_acknowledgements]
-    end
-
     private
 
-    attr_accessor :setup_procs
+    attr_accessor :setup_procs, :waiter
 
     def unique_consumer_tag
       prefix = Hutch::Config[:consumer_tag_prefix]
