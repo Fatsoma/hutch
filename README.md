@@ -1,29 +1,49 @@
 ![](http://cl.ly/image/3h0q3F3G142K/hutch.png)
 
+[![Gem Version](https://badge.fury.io/rb/hutch.svg)](http://badge.fury.io/rb/hutch)
+[![Build Status](https://travis-ci.org/gocardless/hutch.svg?branch=master)](https://travis-ci.org/gocardless/hutch)
+[![Dependency Status](https://gemnasium.com/gocardless/hutch.svg)](https://gemnasium.com/gocardless/hutch)
+[![Code Climate](https://codeclimate.com/github/gocardless/hutch.svg)](https://codeclimate.com/github/gocardless/hutch)
+
 Hutch is a Ruby library for enabling asynchronous inter-service communication
 in a service-oriented architecture, using RabbitMQ.
-
-[![Gem Version](https://badge.fury.io/rb/hutch.png)](http://badge.fury.io/rb/hutch)
-[![Build Status](https://travis-ci.org/gocardless/hutch.png?branch=master)](https://travis-ci.org/gocardless/hutch)
-[![Dependency Status](https://gemnasium.com/gocardless/hutch.png)](https://gemnasium.com/gocardless/hutch)
-[![Code Climate](https://codeclimate.com/github/gocardless/hutch.png)](https://codeclimate.com/github/gocardless/hutch)
 
 To install with RubyGems:
 
 ```
-$ gem install hutch
+gem install hutch
 ```
 
-## Project Maturity
+<!-- Tocer[start]: Auto-generated, don't remove. -->
 
-Hutch is a moderately mature project (started in early 2013)
-that was extracted from production systems.
+### Table of Contents
 
+  - [Requirements](#requirements)
+  - [Overview](#overview)
+    - [Project Maturity](#project-maturity)
+  - [Consumers](#consumers)
+    - [Message Processing Tracers](#message-processing-tracers)
+  - [Running Hutch](#running-hutch)
+    - [Loading Consumers](#loading-consumers)
+    - [Stopping Hutch](#stopping-hutch)
+  - [Producers](#producers)
+    - [Producer Configuration](#producer-configuration)
+    - [Publisher Confirms](#publisher-confirms)
+    - [Writing Well-Behaved Publishers](#writing-well-behaved-publishers)
+  - [Wait exchange](#wait-exchange)
+    - [Expiration suffices](#expiration-suffices)
+  - [Configuration](#configuration)
+    - [Config File](#config-file)
+    - [Environment variables](#environment-variables)
+    - [Configuration precedence](#configuration-precedence)
+    - [Generated list of configuration options](#generated-list-of-configuration-options)
 
-## Supported Ruby Versions
+<!-- Tocer[finish]: Auto-generated, don't remove. -->
 
-Hutch requires CRuby 2.0+ or JRuby 9K.
+## Requirements
 
+- Hutch requires Ruby 2.0+ or JRuby 9K.
+- Hutch requires RabbitMQ 3.3 or later.
 
 ## Overview
 
@@ -39,8 +59,12 @@ and so on. Publishers connect to RabbitMQ via `Hutch.connect` and publish using 
 Hutch uses [Bunny](http://rubybunny.info) or [March Hare](http://rubymarchhare.info)
 (on JRuby) under the hood.
 
+### Project Maturity
 
-## Defining Consumers
+Hutch is a moderately mature project (started in early 2013)
+that was extracted from production systems.
+
+## Consumers
 
 Consumers receive messages from a RabbitMQ queue. That queue may be bound to
 one or more topics (represented by routing keys).
@@ -107,7 +131,7 @@ a [Logger object](http://ruby-doc.org/stdlib-2.1.2/libdoc/logger/rdoc/Logger.htm
 class FailedPaymentConsumer
   include Hutch::Consumer
   consume 'gc.ps.payment.failed'
-  
+
   def process(message)
     logger.info "Marking payment #{message[:id]} as failed"
     mark_payment_as_failed(message[:id])
@@ -136,11 +160,13 @@ to learn more.
 
 Tracers allow you to track message processing.
 
-#### NewRelic
+This will enable NewRelic custom instrumentation:
+
 ```ruby
 Hutch::Config.set(:tracer, Hutch::Tracers::NewRelic)
 ```
-This will enable NewRelic custom instrumentation. Batteries included! Screenshoots available [here](https://monosnap.com/list/557020a000779174f23467e3).
+
+Batteries included! 
 
 ## Running Hutch
 
@@ -284,7 +310,29 @@ end
 If using publisher confirms with amqp gem, see [this issue][pc-issue]
 and [this gist][pc-gist] for more info.
 
-## Configuration Reference
+## Wait exchange
+
+Hutch uses a wait exchange with a [dead-letter-exchange](https://www.rabbitmq.com/dlx.html) to wait before processing a message. See this [guide on back off and retry](http://globaldev.co.uk/2014/07/back-off-and-retry-with-rabbitmq/).
+
+To set a wait before processing the message, set expiration and use `Hutch.publish_wait`. For example:
+
+```ruby
+Hutch.connect
+Hutch.publish_wait('routing.key', { key: 'value' }, expiration: 10_000)
+```
+
+### Expiration suffices
+
+To avoid the issue of messages with shorter expiration times getting queued behind longer expiration times, we create a wait exchange/queue for each expiration length. The convention is simply:
+
+```ruby
+exchange_name = "#{mq_wait_exchange}_#{expiration}"
+queue_name = "#{mq_wait_queue}_#{expiration}"
+```
+
+Configure the suffices to be created at startup with `mq_wait_expiration_suffices`
+
+## Configuration
 
 ### Config File
 
@@ -324,32 +372,287 @@ Known configuration parameters are:
  * `write_timeout`: Bunny's socket write timeout (default: `11`)
  * `tracer`: tracer to use to track message processing
 
+### Environment variables
 
-## Wait exchange
+The file configuration options mentioned above can also be passed in via environment variables, using the `HUTCH_` prefix, eg.
 
-Hutch uses a wait exchange with a [dead-letter-exchange](https://www.rabbitmq.com/dlx.html) to wait before processing a message. See this [guide on back off and retry](http://globaldev.co.uk/2014/07/back-off-and-retry-with-rabbitmq/).
+ * `connection_timeout` &rarr; `HUTCH_CONNECTION_TIMEOUT`.
 
-To set a wait before processing the message, set expiration and use `Hutch.publish_wait`. For example:
+### Configuration precedence
 
-```ruby
-Hutch.connect
-Hutch.publish_wait('routing.key', { key: 'value' }, expiration: 10_000)
-```
+In order from lowest to highest precedence:
 
-### Expiration suffices
+0. Default values
+0. `HUTCH_*` environment variables
+0. Configuration file
+0. Explicit settings through `Hutch::Config.set`
 
-To avoid the issue of messages with shorter expiration times getting queued behind longer expiration times, we create a wait exchange/queue for each expiration length. The convention is simply:
+### Generated list of configuration options
 
-```ruby
-exchange_name = "#{mq_wait_exchange}_#{expiration}"
-queue_name = "#{mq_wait_queue}_#{expiration}"
-```
+Generate with
 
-Configure the suffices to be created at startup with `mq_wait_expiration_suffices`
+0. `yard doc lib/hutch/config.rb`
+0. Copy the _Configuration_ section from `doc/Hutch/Config.html` here, with the anchor tags stripped.
 
-## Supported RabbitMQ Versions
+<table border="1" class="settings" style="overflow:visible;">
+  <thead>
+    <tr>
+      <th>
+        Setting name
+      </th>
+      <th>
+        Default value
+      </th>
+      <th>
+        Type
+      </th>
+      <th>
+        ENV variable
+      </th>
+      <th>
+        Description
+      </th>
+    </tr>
+  </thead>
+  <tbody>
+  
+    <tr>
+      <td><tt>mq_host</tt></td>
+      <td>127.0.0.1</td>
+      <td>String</td>
+      <td><tt>HUTCH_MQ_HOST</tt></td>
+      <td><p>RabbitMQ hostname</p>
+</td>
+    </tr>
+  
+    <tr>
+      <td><tt>mq_exchange</tt></td>
+      <td>hutch</td>
+      <td>String</td>
+      <td><tt>HUTCH_MQ_EXCHANGE</tt></td>
+      <td><p>RabbitMQ Exchange to use for publishing</p>
+</td>
+    </tr>
+  
+    <tr>
+      <td><tt>mq_vhost</tt></td>
+      <td>/</td>
+      <td>String</td>
+      <td><tt>HUTCH_MQ_VHOST</tt></td>
+      <td><p>RabbitMQ vhost to use</p>
+</td>
+    </tr>
+  
+    <tr>
+      <td><tt>mq_username</tt></td>
+      <td>guest</td>
+      <td>String</td>
+      <td><tt>HUTCH_MQ_USERNAME</tt></td>
+      <td><p>RabbitMQ username to use.</p>
+</td>
+    </tr>
+  
+    <tr>
+      <td><tt>mq_password</tt></td>
+      <td>guest</td>
+      <td>String</td>
+      <td><tt>HUTCH_MQ_PASSWORD</tt></td>
+      <td><p>RabbitMQ password</p>
+</td>
+    </tr>
+  
+    <tr>
+      <td><tt>uri</tt></td>
+      <td>nil</td>
+      <td>String</td>
+      <td><tt>HUTCH_URI</tt></td>
+      <td><p>RabbitMQ URI (takes precedence over MQ username, password, host, port and vhost settings)</p>
+</td>
+    </tr>
+  
+    <tr>
+      <td><tt>mq_api_host</tt></td>
+      <td>127.0.0.1</td>
+      <td>String</td>
+      <td><tt>HUTCH_MQ_API_HOST</tt></td>
+      <td><p>RabbitMQ HTTP API hostname</p>
+</td>
+    </tr>
+  
+    <tr>
+      <td><tt>mq_port</tt></td>
+      <td>5672</td>
+      <td>Number</td>
+      <td><tt>HUTCH_MQ_PORT</tt></td>
+      <td><p>RabbitMQ port</p>
+</td>
+    </tr>
+  
+    <tr>
+      <td><tt>mq_api_port</tt></td>
+      <td>15672</td>
+      <td>Number</td>
+      <td><tt>HUTCH_MQ_API_PORT</tt></td>
+      <td><p>RabbitMQ HTTP API port</p>
+</td>
+    </tr>
+  
+    <tr>
+      <td><tt>heartbeat</tt></td>
+      <td>30</td>
+      <td>Number</td>
+      <td><tt>HUTCH_HEARTBEAT</tt></td>
+      <td><p><a href="http://rabbitmq.com/heartbeats.html">RabbitMQ heartbeat timeout</a></p>
+</td>
+    </tr>
+  
+    <tr>
+      <td><tt>channel_prefetch</tt></td>
+      <td>0</td>
+      <td>Number</td>
+      <td><tt>HUTCH_CHANNEL_PREFETCH</tt></td>
+      <td><p>The <tt>basic.qos</tt> prefetch value to use.</p>
+</td>
+    </tr>
+  
+    <tr>
+      <td><tt>connection_timeout</tt></td>
+      <td>11</td>
+      <td>Number</td>
+      <td><tt>HUTCH_CONNECTION_TIMEOUT</tt></td>
+      <td><p>Bunny's socket open timeout</p>
+</td>
+    </tr>
+  
+    <tr>
+      <td><tt>read_timeout</tt></td>
+      <td>11</td>
+      <td>Number</td>
+      <td><tt>HUTCH_READ_TIMEOUT</tt></td>
+      <td><p>Bunny's socket read timeout</p>
+</td>
+    </tr>
+  
+    <tr>
+      <td><tt>write_timeout</tt></td>
+      <td>11</td>
+      <td>Number</td>
+      <td><tt>HUTCH_WRITE_TIMEOUT</tt></td>
+      <td><p>Bunny's socket write timeout</p>
+</td>
+    </tr>
+  
+    <tr>
+      <td><tt>graceful_exit_timeout</tt></td>
+      <td>11</td>
+      <td>Number</td>
+      <td><tt>HUTCH_GRACEFUL_EXIT_TIMEOUT</tt></td>
+      <td><p>FIXME: DOCUMENT THIS</p>
+</td>
+    </tr>
+  
+    <tr>
+      <td><tt>consumer_pool_size</tt></td>
+      <td>1</td>
+      <td>Number</td>
+      <td><tt>HUTCH_CONSUMER_POOL_SIZE</tt></td>
+      <td><p>Bunny consumer work pool size</p>
+</td>
+    </tr>
+  
+    <tr>
+      <td><tt>mq_tls</tt></td>
+      <td>false</td>
+      <td>Boolean</td>
+      <td><tt>HUTCH_MQ_TLS</tt></td>
+      <td><p>Should TLS be used?</p>
+</td>
+    </tr>
+  
+    <tr>
+      <td><tt>mq_verify_peer</tt></td>
+      <td>true</td>
+      <td>Boolean</td>
+      <td><tt>HUTCH_MQ_VERIFY_PEER</tt></td>
+      <td><p>Should SSL certificate be verified?</p>
+</td>
+    </tr>
+  
+    <tr>
+      <td><tt>mq_api_ssl</tt></td>
+      <td>false</td>
+      <td>Boolean</td>
+      <td><tt>HUTCH_MQ_API_SSL</tt></td>
+      <td><p>Should SSL be used for the RabbitMQ API?</p>
+</td>
+    </tr>
+  
+    <tr>
+      <td><tt>autoload_rails</tt></td>
+      <td>true</td>
+      <td>Boolean</td>
+      <td><tt>HUTCH_AUTOLOAD_RAILS</tt></td>
+      <td><p>Should the current Rails app directory be required?</p>
+</td>
+    </tr>
+  
+    <tr>
+      <td><tt>daemonise</tt></td>
+      <td>false</td>
+      <td>Boolean</td>
+      <td><tt>HUTCH_DAEMONISE</tt></td>
+      <td><p>Should the Hutch runner process daemonise?</p>
+</td>
+    </tr>
+  
+    <tr>
+      <td><tt>publisher_confirms</tt></td>
+      <td>false</td>
+      <td>Boolean</td>
+      <td><tt>HUTCH_PUBLISHER_CONFIRMS</tt></td>
+      <td><p>Should RabbitMQ publisher confirms be enabled?</p>
+</td>
+    </tr>
+  
+    <tr>
+      <td><tt>force_publisher_confirms</tt></td>
+      <td>false</td>
+      <td>Boolean</td>
+      <td><tt>HUTCH_FORCE_PUBLISHER_CONFIRMS</tt></td>
+      <td><p>Enables publisher confirms, forces Hutch::Broker#wait_for_confirms for</p>
+</td>
+    </tr>
+  
+    <tr>
+      <td><tt>enable_http_api_use</tt></td>
+      <td>true</td>
+      <td>Boolean</td>
+      <td><tt>HUTCH_ENABLE_HTTP_API_USE</tt></td>
+      <td><p>Should the RabbitMQ HTTP API be used?</p>
+</td>
+    </tr>
+  
+    <tr>
+      <td><tt>consumer_pool_abort_on_exception</tt></td>
+      <td>false</td>
+      <td>Boolean</td>
+      <td><tt>HUTCH_CONSUMER_POOL_ABORT_ON_EXCEPTION</tt></td>
+      <td><p>Should Bunny's consumer work pool threads abort on exception.</p>
+</td>
+    </tr>
 
-Hutch requires RabbitMQ 3.3 or later.
+    <tr>
+      <td><tt>consumer_tag_prefix</tt></td>
+      <td>hutch</td>
+      <td>String</td>
+      <td><tt>HUTCH_CONSUMER_TAG_PREFIX</tt></td>
+      <td><p>Prefix displayed on the consumers tags.</p>
+</td>
+    </tr>
+  
+  </tbody>
+</table>
+
 
 ---
 

@@ -2,7 +2,15 @@ require 'spec_helper'
 require 'hutch/channel_broker'
 
 describe Hutch::ChannelBroker do
-  let(:config) { deep_copy(Hutch::Config.user_config) }
+  before do
+    Hutch::Config.initialize(client_logger: Hutch::Logging.logger)
+    @config = Hutch::Config.to_hash
+  end
+  let!(:config) { @config }
+  after do
+    Hutch::Config.instance_variable_set(:@config, nil)
+    Hutch::Config.initialize
+  end
   let(:connection) { double('Connection') }
   let(:channel) { double('Channel') }
   subject(:channel_broker) { Hutch::ChannelBroker.new(connection, config) }
@@ -39,17 +47,20 @@ describe Hutch::ChannelBroker do
 
   describe '#reconnect' do
     let(:new_channel) { double('Channel') }
+    let(:new_exchange) { double('Exchange') }
 
     before do
       allow(channel_broker).to receive(:disconnect)
       allow(channel_broker).to receive(:open_channel!).and_return(new_channel)
+      allow(channel_broker).to receive(:declare_exchange!).and_return(new_exchange)
     end
 
     subject! { channel_broker.reconnect }
 
     it { expect(channel_broker).to have_received(:disconnect) }
     it { expect(channel_broker).to have_received(:open_channel!) }
-    it { is_expected.to eq(new_channel) }
+    it { expect(channel_broker).to have_received(:declare_exchange!) }
+    it { is_expected.to eq(new_exchange) }
   end
 
   describe '#active' do

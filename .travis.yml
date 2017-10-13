@@ -1,17 +1,19 @@
 language: ruby
 cache: bundler
-rvm:
-  - "2.3.0"
-  - "2.2"
-  - "2.1"
-  - "2.0"
-  - "jruby-9.0.0.0"
-
-sudo: false
+before_install:
+  - gem update --system
+  - gem install bundler
+matrix:
+  include:
+    - rvm: 2.4.0
+    - rvm: 2.3.3
+    - rvm: 2.2
+    - rvm: 2.1
+    - rvm: 2.0
+    - rvm: jruby-9.1.7.0
+      jdk: oraclejdk8
+      env:
+        - JRUBY_OPTS='--debug'
 
 services:
   - rabbitmq
-
-matrix:
-  allow_failures:
-    - rvm: jruby-9.0.0.0

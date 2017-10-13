@@ -3,7 +3,7 @@ jobs:
   build:
     docker:
       - image: circleci/ruby:2.3.4
-      
+
       # Specify service dependencies here if necessary
       # CircleCI maintains a library of pre-built images
       # documented at https://circleci.com/docs/2.0/circleci-images/
@@ -23,14 +23,14 @@ jobs:
       - run:
           name: wait for rabbitmq
           command: while ! ss -lnt | grep ":5672\>" ; do sleep 0.5 ; done
-        
+
       # run tests!
       - run:
           name: run tests
           command: |
             mkdir /tmp/test-results
             TEST_FILES="$(circleci tests glob "spec/**/*_spec.rb" | circleci tests split --split-by=timings)"
-            
+
             bundle exec rspec --profile 10 \
                               --format progress \
                               --format RspecJunitFormatter \

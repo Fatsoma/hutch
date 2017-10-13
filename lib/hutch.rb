@@ -34,11 +34,16 @@ module Hutch
     @global_properties ||= {}
   end
 
+  # Connects to broker, if not yet connected.
+  #
+  # @param options [Hash] Connection options
+  # @param config [Hash] Configuration
+  # @option options [Boolean] :enable_http_api_use
   def self.connect(options = {}, config = Hutch::Config)
-    unless connected?
-      @broker = Hutch::Broker.new(config)
-      @broker.connect(options)
-    end
+    return if connected?
+
+    @broker = Hutch::Broker.new(config)
+    @broker.connect(options)
   end
 
   def self.disconnect
@@ -49,10 +54,9 @@ module Hutch
     attr_reader :broker
   end
 
+  # @return [Boolean]
   def self.connected?
-    return false unless broker
-    return false unless broker.connection
-    broker.connection.open?
+    broker && broker.connection && broker.connection.open?
   end
 
   def self.publish(*args)

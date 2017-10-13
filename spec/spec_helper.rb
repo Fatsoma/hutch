@@ -13,14 +13,20 @@ require 'raven'
 require 'hutch'
 require 'logger'
 
+# set logger to be a null logger
+Hutch::Logging.logger = Logger.new(File::NULL)
+
 RSpec.configure do |config|
-  config.before(:all) { Hutch::Config.log_level = Logger::FATAL }
   config.raise_errors_for_deprecations!
 
   if defined?(JRUBY_VERSION)
     config.filter_run_excluding adapter: :bunny
   else
     config.filter_run_excluding adapter: :march_hare
+  end
+
+  config.mock_with :rspec do |mocks|
+    mocks.verify_partial_doubles = true
   end
 end
 
@@ -33,8 +39,4 @@ ensure
   (Object.constants - existing_constants).each do |constant|
     Object.send(:remove_const, constant)
   end
-end
-
-def deep_copy(obj)
-  Marshal.load(Marshal.dump(obj))
 end
