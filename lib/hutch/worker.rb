@@ -55,6 +55,7 @@ module Hutch
 
     # Called internally when a new messages comes in from RabbitMQ. Responsible
     # for wrapping up the message and passing it to the consumer.
+    # rubocop:disable Metrics/CyclomaticComplexity
     def handle_message(consumer, delivery_info, properties, payload)
       serializer = consumer.get_serializer || Hutch::Config[:serializer]
       logger.debug do
@@ -70,11 +71,14 @@ module Hutch
       consumer_instance.broker = @broker
       consumer_instance.delivery_info = delivery_info
       with_tracing(consumer_instance).handle(message)
+      logger.debug("ack message(#{properties.message_id || '-'})")
       waiter.push_action(:ack, delivery_info, properties, nil)
     rescue => ex
+      logger.debug("nack message(#{properties.message_id || '-'})")
       waiter.push_action(:nack, delivery_info, properties, ex)
       handle_error(properties, payload, consumer, ex)
     end
+    # rubocop:enable Metrics/CyclomaticComplexity
 
     def with_tracing(klass)
       Hutch::Config[:tracer].new(klass)
