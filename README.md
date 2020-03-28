@@ -2,7 +2,6 @@
 
 [![Gem Version](https://badge.fury.io/rb/hutch.svg)](http://badge.fury.io/rb/hutch)
 [![Build Status](https://travis-ci.org/gocardless/hutch.svg?branch=master)](https://travis-ci.org/gocardless/hutch)
-[![Dependency Status](https://gemnasium.com/gocardless/hutch.svg)](https://gemnasium.com/gocardless/hutch)
 [![Code Climate](https://codeclimate.com/github/gocardless/hutch.svg)](https://codeclimate.com/github/gocardless/hutch)
 
 Hutch is a Ruby library for enabling asynchronous inter-service communication
@@ -42,7 +41,7 @@ gem install hutch
 
 ## Requirements
 
-- Hutch requires Ruby 2.0+ or JRuby 9K.
+- Hutch requires Ruby 2.2+ or JRuby 9K.
 - Hutch requires RabbitMQ 3.3 or later.
 
 ## Overview
@@ -61,8 +60,9 @@ Hutch uses [Bunny](http://rubybunny.info) or [March Hare](http://rubymarchhare.i
 
 ### Project Maturity
 
-Hutch is a moderately mature project (started in early 2013)
-that was extracted from production systems.
+Hutch is a mature project that was originally extracted from production systems
+at [GoCardless](https://gocardless.com) in 2013 and is now maintained by a large
+group of contributors.
 
 ## Consumers
 
@@ -124,7 +124,7 @@ end
 
 This sets the `x-max-length` header. For more details, see the [RabbitMQ
 documentation on Queue Length Limit](https://www.rabbitmq.com/maxlength.html). To find out more
-about custom queue arguments, consult the [RabbitMQ documentation on AMQP Protocol Extensions](https://www.rabbitmq.com/extensions.html). 
+about custom queue arguments, consult the [RabbitMQ documentation on AMQP Protocol Extensions](https://www.rabbitmq.com/extensions.html).
 
 Consumers can write to Hutch's log by calling the logger method. The logger method returns
 a [Logger object](http://ruby-doc.org/stdlib-2.1.2/libdoc/logger/rdoc/Logger.html).
@@ -168,7 +168,7 @@ This will enable NewRelic custom instrumentation:
 Hutch::Config.set(:tracer, Hutch::Tracers::NewRelic)
 ```
 
-Batteries included! 
+Batteries included!
 
 ## Running Hutch
 
@@ -372,6 +372,8 @@ Known configuration parameters are:
  * `connection_timeout`: Bunny's socket open timeout (default: `11`)
  * `read_timeout`: Bunny's socket read timeout (default: `11`)
  * `write_timeout`: Bunny's socket write timeout (default: `11`)
+ * `automatically_recover`: Bunny's enable/disable network recovery (default: `true`)
+ * `network_recovery_interval`: Bunny's reconnect interval (default: `1`)
  * `tracer`: tracer to use to track message processing
 
 ### Environment variables
@@ -516,6 +518,20 @@ Generate with
       <td><p>Bunny's socket write timeout</p></td>
     </tr>
     <tr>
+      <td><tt>automatically_recover</tt></td>
+      <td>true</td>
+      <td>Boolean</td>
+      <td><tt>HUTCH_AUTOMATICALLY_RECOVER</tt></td>
+      <td><p>Bunny's enable/disable network recovery</p></td>
+    </tr>
+    <tr>
+      <td><tt>network_recovery_interval</tt></td>
+      <td>1</td>
+      <td>Number</td>
+      <td><tt>HUTCH_NETWORK_RECOVERY_INTERVAL</tt></td>
+      <td><p>Bunny's reconnect interval</p></td>
+    </tr>
+    <tr>
       <td><tt>graceful_exit_timeout</tt></td>
       <td>11</td>
       <td>Number</td>
@@ -601,8 +617,3 @@ Generate with
     </tr>
   </tbody>
 </table>
-
-
----
-
-GoCardless ♥ open source. If you do too, come [join us](https://gocardless.com/jobs/backend_developer).

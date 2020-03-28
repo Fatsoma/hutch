@@ -303,8 +303,8 @@ module Hutch
         params[:read_timeout]       = @config[:read_timeout]
         params[:write_timeout]      = @config[:write_timeout]
 
-        params[:automatically_recover] = true
-        params[:network_recovery_interval] = 1
+        params[:automatically_recover] = @config[:automatically_recover]
+        params[:network_recovery_interval] = @config[:network_recovery_interval]
 
         params[:logger] = @config[:client_logger] if @config[:client_logger]
       end

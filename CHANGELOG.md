@@ -1,8 +1,99 @@
-## 0.25.0 — (unreleased)
+## 0.27.0
 
 No changes yet.
 
 
+## 0.26.0 (February 13th, 2019)
+
+### Dependency Bumps
+
+Bunny and other dependencies were updated to their latest release
+series.
+
+### Synchronized Connection Code
+
+The methods that connect to RabbitMQ are now synchronized which makes
+them safer to use in concurrent settings. Note that Hutch still
+uses a single Bunny channel which is not meant to be shared
+between threads without application-level synchronization for publishing.
+
+Contributed by Chris Barton.
+
+GitHub issue: [#308](https://github.com/gocardless/hutch/pull/308).
+
+### More Bunny Options Propagated
+
+Contributed by Damian Le Nouaille.
+
+GitHub issue: [#322](https://github.com/gocardless/hutch/pull/322).
+
+### Removed Opbeat Integration
+
+The service is no longer generally available.
+
+Contributed by Olle Jonsson.
+
+GitHub issue: [#313](https://github.com/gocardless/hutch/pull/313)
+
+
+## 0.25.0 - January 17th, 2018
+
+### Consumer groups
+
+Consumer groups allow you to run groups of consumers together, rather than running them
+all at once in a single process. You define groups in your config file, and then specify
+a `--only-group` option when starting up Hutch with `hutch`.
+
+Contributed by Nickolai Smirnov.
+
+GitHub pull request: [#296](https://github.com/gocardless/hutch/pull/296)
+
+### Fix configuring Hutch with a URI
+
+When Hutch is configured to connect to RabbitMQ with a URI, we should respect the
+`amqps` specification, defaulting to the standard protocol ports when not specified.
+
+This means, for example, that `amqp://guest:guest@127.0.0.1/` connects to the server on
+port 5672 and does not use TLS, whereas `amqps://guest:guest@127.0.0.1/` connects to the
+server on port 5671 and uses TLS.
+
+This behaviour was introduced in [#159](https://github.com/gocardless/hutch/pull/159) but
+broken since then. This fixes it, and includes tests.
+
+Contributed by Michael Canden-Lennox.
+
+GitHub pull request: [#305](https://github.com/gocardless/hutch/pull/305)
+
+### Pass exceptions when setting up the client to configured error handlers
+
+When an error occurs during Hutch's startup, it is currently not passed to the configured
+error handlers. This starts handling those exceptions.
+
+Contributed by Valentin Krasontovitsch.
+
+GitHub issue: [#288](https://github.com/gocardless/hutch/issues/288)
+GitHub pull request: [#301](https://github.com/gocardless/hutch/pull/301)
+
+### Log the Rails environment when running Hutch in verbose mode
+
+When starting up Hutch in verbose mode with `hutch -v`, the Rails environment is now
+logged.
+
+Contributed by [@wppurking](https://github.com/wppurking).
+
+GitHub pull request: [#282](https://github.com/gocardless/hutch/pull/282)
+
+### Make the Honeybadger error handler compatible with new versions of `honeybadger-ruby`
+
+[`honeybadger-ruby`](https://github.com/honeybadger-io/honeybadger-ruby/)
+[changed](https://github.com/honeybadger-io/honeybadger-ruby/blob/master/CHANGELOG.md#300---2017-02-06)
+its API in v3.0.0. This updates our error handler to work with that, whilst still
+maintaining our existing behaviour.
+
+Contributed by Olle Jonsson and Bill Ruddock.
+
+GitHub pull requests: [#274](https://github.com/gocardless/hutch/pull/274),
+[#290](https://github.com/gocardless/hutch/pull/290)
 
 ## 0.24.0 — February 1st, 2017
 
@@ -20,7 +111,7 @@ Hutch will now handle several OS signals:
 
  * `USR2` will log stack traces of all alive VM threads
  * `QUIT` (except on JRuby), `INT`, `TERM` will cause Hutch daemon to shut down
- 
+
  Contributed by Olle Jonsson.
 
 GitHub issues: [#263](https://github.com/gocardless/hutch/pull/263), [#271](https://github.com/gocardless/hutch/pull/271)
@@ -104,7 +195,7 @@ Contributed by Seamus Abshere.
 
 ### Worker: Log received messages using level DEBUG instead of INFO
 
-Received messages used to be logged using severity level INFO. 
+Received messages used to be logged using severity level INFO.
 This has been lowered to DEBUG.
 
 Contributed by Jesper Josefsson.
@@ -636,4 +727,3 @@ Hutch.global_properties = proc {
 ## 0.1.0 - September 9, 2013
 
 - Initial release
-

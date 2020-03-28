@@ -2,15 +2,21 @@ language: ruby
 cache: bundler
 before_install:
   - gem install bundler
+before_script:
+  - "./bin/ci/install_on_debian.sh"
+  - until sudo lsof -i:5672; do echo "Waiting for RabbitMQ to start..."; sleep 1; done
 matrix:
   include:
-    - rvm: 2.4.2
-    - rvm: 2.3.5
-    - rvm: 2.2.8
-    - rvm: jruby-9.1.15.0
-      jdk: oraclejdk8
-      env:
-        - JRUBY_OPTS='--debug'
+    - rvm: "2.6.1"
+    - rvm: "2.5.3"
+    - rvm: "2.4.5"
+    - rvm: "2.3.8"
+    - rvm: "jruby-9.2.6.0"
+    - rvm: "ruby-head"
+  allow_failures:
+    rvm:
+      - "jruby-9.2.6.0"
+      - ruby-head
 
 services:
   - rabbitmq
