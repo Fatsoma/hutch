@@ -23,7 +23,7 @@ group :development, :test do
   gem 'honeybadger'
   gem 'coveralls', '~> 0.8.15', require: false
   gem 'newrelic_rpm'
-  gem 'airbrake', '~> 5.0'
+  gem 'airbrake', '~> 7.0'
   gem 'opbeat', '~> 3.0.9'
   gem 'rb-inotify', '~> 0.9', require: false
   gem 'rspec_junit_formatter', '~> 0.3.0'

@@ -72,8 +72,8 @@ module Hutch
         end
         rails_path = File.expand_path(File.join(path, 'config/environment.rb'))
         if is_rails_app && File.exist?(rails_path)
-          logger.info "found rails project (#{path}), booting app"
           ENV['RACK_ENV'] ||= ENV['RAILS_ENV'] || 'development'
+          logger.info "found rails project (#{path}), booting app in #{ENV['RACK_ENV']} environment"
           require rails_path
           ::Rails.application.eager_load!
           return true
@@ -90,6 +90,9 @@ module Hutch
       @worker.run
       :success
     rescue ConnectionError, AuthenticationError, WorkerSetupError => ex
+      Hutch::Config[:error_handlers].each do |backend|
+        backend.handle_setup_exception(ex)
+      end
       logger.fatal ex.message
       :error
     end
@@ -199,6 +202,10 @@ module Hutch
 
         opts.on('--pidfile PIDFILE', 'Pidfile') do |pidfile|
           Hutch::Config.pidfile = pidfile
+        end
+
+        opts.on('--only-group GROUP', 'Load only consumers in this group') do |group|
+          Hutch::Config.group = group
         end
 
         opts.on('--version', 'Print the version and exit') do

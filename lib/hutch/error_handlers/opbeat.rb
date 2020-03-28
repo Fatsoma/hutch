@@ -1,10 +1,10 @@
 require 'hutch/logging'
 require 'opbeat'
+require 'hutch/error_handlers/base'
 
 module Hutch
   module ErrorHandlers
-    class Opbeat
-      include Logging
+    class Opbeat < Base
 
       def initialize
         unless ::Opbeat.respond_to?(:report)
@@ -18,6 +18,12 @@ module Hutch
         logger.error "#{prefix} Logging event to Opbeat"
         logger.error "#{prefix} #{ex.class} - #{ex.message}"
         ::Opbeat.report(ex, extra: { payload: payload })
+      end
+
+      def handle_setup_exception(ex)
+        logger.error "Logging setup exception to Opbeat"
+        logger.error "#{ex.class} - #{ex.message}"
+        ::Opbeat.report(ex)
       end
     end
   end
