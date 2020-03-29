@@ -4,6 +4,6 @@ module Hutch
     autoload :Sentry,      'hutch/error_handlers/sentry'
     autoload :Honeybadger, 'hutch/error_handlers/honeybadger'
     autoload :Airbrake,    'hutch/error_handlers/airbrake'
-    autoload :Opbeat,      'hutch/error_handlers/opbeat'
+    autoload :Rollbar,     'hutch/error_handlers/rollbar'
   end
 end

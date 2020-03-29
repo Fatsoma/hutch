@@ -89,6 +89,12 @@ module Hutch
     # Bunny's socket write timeout
     number_setting :write_timeout, 11
 
+    # Bunny's enable/disable network recovery
+    boolean_setting :automatically_recover, true
+
+    # Bunny's reconnect interval
+    number_setting :network_recovery_interval, 1
+
     # FIXME: DOCUMENT THIS
     number_setting :graceful_exit_timeout, 11
 
@@ -136,6 +142,8 @@ module Hutch
     # Prefix displayed on the consumers tags.
     string_setting :consumer_tag_prefix, 'hutch'
 
+    string_setting :group, ''
+
     # Set of all setting keys
     ALL_KEYS = @boolean_keys + @number_keys + @string_keys
 
@@ -170,6 +178,7 @@ module Hutch
         # that will fall back to "nack unconditionally"
         error_acknowledgements: [],
         setup_procs: [],
+        consumer_groups: {},
         tracer: Hutch::Tracers::NullTracer,
         namespace: nil,
         pidfile: nil,

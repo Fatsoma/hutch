@@ -1,7 +1,7 @@
 require 'spec_helper'
 
-describe Hutch::ErrorHandlers::Airbrake do
-  let(:error_handler) { Hutch::ErrorHandlers::Airbrake.new }
+describe Hutch::ErrorHandlers::Rollbar do
+  let(:error_handler) { Hutch::ErrorHandlers::Rollbar.new }
 
   describe '#handle' do
     let(:error) do
@@ -12,7 +12,7 @@ describe Hutch::ErrorHandlers::Airbrake do
       end
     end
 
-    it "logs the error to Airbrake" do
+    it "logs the error to Rollbar" do
       message_id = "1"
       properties = OpenStruct.new(message_id: message_id)
       payload = "{}"
@@ -20,10 +20,9 @@ describe Hutch::ErrorHandlers::Airbrake do
       ex = error
       message = {
         payload: payload,
-        consumer: consumer,
-        cgi_data: ENV.to_hash,
+        consumer: consumer
       }
-      expect(::Airbrake).to receive(:notify).with(ex, message)
+      expect(::Rollbar).to receive(:error).with(ex, message)
       error_handler.handle(properties, payload, consumer, ex)
     end
   end
@@ -37,12 +36,9 @@ describe Hutch::ErrorHandlers::Airbrake do
       end
     end
 
-    it "logs the error to Airbrake" do
+    it "logs the error to Rollbar" do
       ex = error
-      message = {
-        cgi_data: ENV.to_hash,
-      }
-      expect(::Airbrake).to receive(:notify).with(ex, message)
+      expect(::Rollbar).to receive(:error).with(ex)
       error_handler.handle_setup_exception(ex)
     end
   end

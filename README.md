@@ -2,7 +2,6 @@
 
 [![Gem Version](https://badge.fury.io/rb/hutch.svg)](http://badge.fury.io/rb/hutch)
 [![Build Status](https://travis-ci.org/gocardless/hutch.svg?branch=master)](https://travis-ci.org/gocardless/hutch)
-[![Dependency Status](https://gemnasium.com/gocardless/hutch.svg)](https://gemnasium.com/gocardless/hutch)
 [![Code Climate](https://codeclimate.com/github/gocardless/hutch.svg)](https://codeclimate.com/github/gocardless/hutch)
 
 Hutch is a Ruby library for enabling asynchronous inter-service communication
@@ -42,7 +41,7 @@ gem install hutch
 
 ## Requirements
 
-- Hutch requires Ruby 2.0+ or JRuby 9K.
+- Hutch requires Ruby 2.3+ or JRuby 9K.
 - Hutch requires RabbitMQ 3.3 or later.
 
 ## Overview
@@ -61,8 +60,9 @@ Hutch uses [Bunny](http://rubybunny.info) or [March Hare](http://rubymarchhare.i
 
 ### Project Maturity
 
-Hutch is a moderately mature project (started in early 2013)
-that was extracted from production systems.
+Hutch is a mature project that was originally extracted from production systems
+at [GoCardless](https://gocardless.com) in 2013 and is now maintained by a large
+group of contributors.
 
 ## Consumers
 
@@ -82,8 +82,8 @@ message[:id]  # => "02ABCXYZ"
 To subscribe to a topic, pass a routing key to `consume` in the class
 definition. To bind to multiple routing keys, simply pass extra routing keys
 in as additional arguments. Refer to the [RabbitMQ docs on topic exchanges
-][topic-docs] for more information about how to use routing keys. Here's an
-example consumer:
+](http://www.rabbitmq.com/tutorials/tutorial-five-ruby.html) for more information
+about how to use routing keys. Here's an example consumer:
 
 ```ruby
 class FailedPaymentConsumer
@@ -122,7 +122,9 @@ class FailedPaymentConsumer
 end
 ```
 
-Custom queue arguments can be found on [this page](https://www.rabbitmq.com/extensions.html).
+This sets the `x-max-length` header. For more details, see the [RabbitMQ
+documentation on Queue Length Limit](https://www.rabbitmq.com/maxlength.html). To find out more
+about custom queue arguments, consult the [RabbitMQ documentation on AMQP Protocol Extensions](https://www.rabbitmq.com/extensions.html).
 
 Consumers can write to Hutch's log by calling the logger method. The logger method returns
 a [Logger object](http://ruby-doc.org/stdlib-2.1.2/libdoc/logger/rdoc/Logger.html).
@@ -166,7 +168,7 @@ This will enable NewRelic custom instrumentation:
 Hutch::Config.set(:tracer, Hutch::Tracers::NewRelic)
 ```
 
-Batteries included! 
+Batteries included!
 
 ## Running Hutch
 
@@ -307,8 +309,8 @@ AMQP.connect(host: config[:host]) do |connection|
 end
 ```
 
-If using publisher confirms with amqp gem, see [this issue][pc-issue]
-and [this gist][pc-gist] for more info.
+If using publisher confirms with amqp gem, see [this issue](https://github.com/ruby-amqp/amqp/issues/92)
+and [this gist](https://gist.github.com/3042381) for more info.
 
 ## Wait exchange
 
@@ -370,6 +372,8 @@ Known configuration parameters are:
  * `connection_timeout`: Bunny's socket open timeout (default: `11`)
  * `read_timeout`: Bunny's socket read timeout (default: `11`)
  * `write_timeout`: Bunny's socket write timeout (default: `11`)
+ * `automatically_recover`: Bunny's enable/disable network recovery (default: `true`)
+ * `network_recovery_interval`: Bunny's reconnect interval (default: `1`)
  * `tracer`: tracer to use to track message processing
 
 ### Environment variables
@@ -415,245 +419,201 @@ Generate with
     </tr>
   </thead>
   <tbody>
-  
     <tr>
       <td><tt>mq_host</tt></td>
       <td>127.0.0.1</td>
       <td>String</td>
       <td><tt>HUTCH_MQ_HOST</tt></td>
-      <td><p>RabbitMQ hostname</p>
-</td>
+      <td><p>RabbitMQ hostname</p></td>
     </tr>
-  
     <tr>
       <td><tt>mq_exchange</tt></td>
       <td>hutch</td>
       <td>String</td>
       <td><tt>HUTCH_MQ_EXCHANGE</tt></td>
-      <td><p>RabbitMQ Exchange to use for publishing</p>
-</td>
+      <td><p>RabbitMQ Exchange to use for publishing</p></td>
     </tr>
-  
     <tr>
       <td><tt>mq_vhost</tt></td>
       <td>/</td>
       <td>String</td>
       <td><tt>HUTCH_MQ_VHOST</tt></td>
-      <td><p>RabbitMQ vhost to use</p>
-</td>
+      <td><p>RabbitMQ vhost to use</p></td>
     </tr>
-  
     <tr>
       <td><tt>mq_username</tt></td>
       <td>guest</td>
       <td>String</td>
       <td><tt>HUTCH_MQ_USERNAME</tt></td>
-      <td><p>RabbitMQ username to use.</p>
-</td>
+      <td><p>RabbitMQ username to use.</p></td>
     </tr>
-  
     <tr>
       <td><tt>mq_password</tt></td>
       <td>guest</td>
       <td>String</td>
       <td><tt>HUTCH_MQ_PASSWORD</tt></td>
-      <td><p>RabbitMQ password</p>
-</td>
+      <td><p>RabbitMQ password</p></td>
     </tr>
-  
     <tr>
       <td><tt>uri</tt></td>
       <td>nil</td>
       <td>String</td>
       <td><tt>HUTCH_URI</tt></td>
-      <td><p>RabbitMQ URI (takes precedence over MQ username, password, host, port and vhost settings)</p>
-</td>
+      <td><p>RabbitMQ URI (takes precedence over MQ username, password, host, port and vhost settings)</p></td>
     </tr>
-  
     <tr>
       <td><tt>mq_api_host</tt></td>
       <td>127.0.0.1</td>
       <td>String</td>
       <td><tt>HUTCH_MQ_API_HOST</tt></td>
-      <td><p>RabbitMQ HTTP API hostname</p>
-</td>
+      <td><p>RabbitMQ HTTP API hostname</p></td>
     </tr>
-  
     <tr>
       <td><tt>mq_port</tt></td>
       <td>5672</td>
       <td>Number</td>
       <td><tt>HUTCH_MQ_PORT</tt></td>
-      <td><p>RabbitMQ port</p>
-</td>
+      <td><p>RabbitMQ port</p></td>
     </tr>
-  
     <tr>
       <td><tt>mq_api_port</tt></td>
       <td>15672</td>
       <td>Number</td>
       <td><tt>HUTCH_MQ_API_PORT</tt></td>
-      <td><p>RabbitMQ HTTP API port</p>
-</td>
+      <td><p>RabbitMQ HTTP API port</p></td>
     </tr>
-  
     <tr>
       <td><tt>heartbeat</tt></td>
       <td>30</td>
       <td>Number</td>
       <td><tt>HUTCH_HEARTBEAT</tt></td>
-      <td><p><a href="http://rabbitmq.com/heartbeats.html">RabbitMQ heartbeat timeout</a></p>
-</td>
+      <td><p><a href="http://rabbitmq.com/heartbeats.html">RabbitMQ heartbeat timeout</a></p></td>
     </tr>
-  
     <tr>
       <td><tt>channel_prefetch</tt></td>
       <td>0</td>
       <td>Number</td>
       <td><tt>HUTCH_CHANNEL_PREFETCH</tt></td>
-      <td><p>The <tt>basic.qos</tt> prefetch value to use.</p>
-</td>
+      <td><p>The <tt>basic.qos</tt> prefetch value to use.</p></td>
     </tr>
-  
     <tr>
       <td><tt>connection_timeout</tt></td>
       <td>11</td>
       <td>Number</td>
       <td><tt>HUTCH_CONNECTION_TIMEOUT</tt></td>
-      <td><p>Bunny's socket open timeout</p>
-</td>
+      <td><p>Bunny's socket open timeout</p></td>
     </tr>
-  
     <tr>
       <td><tt>read_timeout</tt></td>
       <td>11</td>
       <td>Number</td>
       <td><tt>HUTCH_READ_TIMEOUT</tt></td>
-      <td><p>Bunny's socket read timeout</p>
-</td>
+      <td><p>Bunny's socket read timeout</p></td>
     </tr>
-  
     <tr>
       <td><tt>write_timeout</tt></td>
       <td>11</td>
       <td>Number</td>
       <td><tt>HUTCH_WRITE_TIMEOUT</tt></td>
-      <td><p>Bunny's socket write timeout</p>
-</td>
+      <td><p>Bunny's socket write timeout</p></td>
     </tr>
-  
+    <tr>
+      <td><tt>automatically_recover</tt></td>
+      <td>true</td>
+      <td>Boolean</td>
+      <td><tt>HUTCH_AUTOMATICALLY_RECOVER</tt></td>
+      <td><p>Bunny's enable/disable network recovery</p></td>
+    </tr>
+    <tr>
+      <td><tt>network_recovery_interval</tt></td>
+      <td>1</td>
+      <td>Number</td>
+      <td><tt>HUTCH_NETWORK_RECOVERY_INTERVAL</tt></td>
+      <td><p>Bunny's reconnect interval</p></td>
+    </tr>
     <tr>
       <td><tt>graceful_exit_timeout</tt></td>
       <td>11</td>
       <td>Number</td>
       <td><tt>HUTCH_GRACEFUL_EXIT_TIMEOUT</tt></td>
-      <td><p>FIXME: DOCUMENT THIS</p>
-</td>
+      <td><p>FIXME: DOCUMENT THIS</p></td>
     </tr>
-  
     <tr>
       <td><tt>consumer_pool_size</tt></td>
       <td>1</td>
       <td>Number</td>
       <td><tt>HUTCH_CONSUMER_POOL_SIZE</tt></td>
-      <td><p>Bunny consumer work pool size</p>
-</td>
+      <td><p>Bunny consumer work pool size</p></td>
     </tr>
-  
     <tr>
       <td><tt>mq_tls</tt></td>
       <td>false</td>
       <td>Boolean</td>
       <td><tt>HUTCH_MQ_TLS</tt></td>
-      <td><p>Should TLS be used?</p>
-</td>
+      <td><p>Should TLS be used?</p></td>
     </tr>
-  
     <tr>
       <td><tt>mq_verify_peer</tt></td>
       <td>true</td>
       <td>Boolean</td>
       <td><tt>HUTCH_MQ_VERIFY_PEER</tt></td>
-      <td><p>Should SSL certificate be verified?</p>
-</td>
+      <td><p>Should SSL certificate be verified?</p></td>
     </tr>
-  
     <tr>
       <td><tt>mq_api_ssl</tt></td>
       <td>false</td>
       <td>Boolean</td>
       <td><tt>HUTCH_MQ_API_SSL</tt></td>
-      <td><p>Should SSL be used for the RabbitMQ API?</p>
-</td>
+      <td><p>Should SSL be used for the RabbitMQ API?</p></td>
     </tr>
-  
     <tr>
       <td><tt>autoload_rails</tt></td>
       <td>true</td>
       <td>Boolean</td>
       <td><tt>HUTCH_AUTOLOAD_RAILS</tt></td>
-      <td><p>Should the current Rails app directory be required?</p>
-</td>
+      <td><p>Should the current Rails app directory be required?</p></td>
     </tr>
-  
     <tr>
       <td><tt>daemonise</tt></td>
       <td>false</td>
       <td>Boolean</td>
       <td><tt>HUTCH_DAEMONISE</tt></td>
-      <td><p>Should the Hutch runner process daemonise?</p>
-</td>
+      <td><p>Should the Hutch runner process daemonise?</p></td>
     </tr>
-  
     <tr>
       <td><tt>publisher_confirms</tt></td>
       <td>false</td>
       <td>Boolean</td>
       <td><tt>HUTCH_PUBLISHER_CONFIRMS</tt></td>
-      <td><p>Should RabbitMQ publisher confirms be enabled?</p>
-</td>
+      <td><p>Should RabbitMQ publisher confirms be enabled?</p></td>
     </tr>
-  
     <tr>
       <td><tt>force_publisher_confirms</tt></td>
       <td>false</td>
       <td>Boolean</td>
       <td><tt>HUTCH_FORCE_PUBLISHER_CONFIRMS</tt></td>
-      <td><p>Enables publisher confirms, forces Hutch::Broker#wait_for_confirms for</p>
-</td>
+      <td><p>Enables publisher confirms, forces Hutch::Broker#wait_for_confirms for</p></td>
     </tr>
-  
     <tr>
       <td><tt>enable_http_api_use</tt></td>
       <td>true</td>
       <td>Boolean</td>
       <td><tt>HUTCH_ENABLE_HTTP_API_USE</tt></td>
-      <td><p>Should the RabbitMQ HTTP API be used?</p>
-</td>
+      <td><p>Should the RabbitMQ HTTP API be used?</p></td>
     </tr>
-  
     <tr>
       <td><tt>consumer_pool_abort_on_exception</tt></td>
       <td>false</td>
       <td>Boolean</td>
       <td><tt>HUTCH_CONSUMER_POOL_ABORT_ON_EXCEPTION</tt></td>
-      <td><p>Should Bunny's consumer work pool threads abort on exception.</p>
-</td>
+      <td><p>Should Bunny's consumer work pool threads abort on exception.</p></td>
     </tr>
-
     <tr>
       <td><tt>consumer_tag_prefix</tt></td>
       <td>hutch</td>
       <td>String</td>
       <td><tt>HUTCH_CONSUMER_TAG_PREFIX</tt></td>
-      <td><p>Prefix displayed on the consumers tags.</p>
-</td>
+      <td><p>Prefix displayed on the consumers tags.</p></td>
     </tr>
-  
   </tbody>
 </table>
-
-
----
-
-GoCardless ♥ open source. If you do too, come [join us](https://gocardless.com/jobs/backend_developer).

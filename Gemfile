@@ -1,6 +1,6 @@
 source 'https://rubygems.org'
 
-ruby RUBY_VERSION
+ruby '>= 2.3.0'
 
 gemspec
 
@@ -23,8 +23,8 @@ group :development, :test do
   gem 'honeybadger'
   gem 'coveralls', '~> 0.8.15', require: false
   gem 'newrelic_rpm'
-  gem 'airbrake', '~> 5.0'
-  gem 'opbeat', '~> 3.0.9'
+  gem 'airbrake', '~> 9.0'
+  gem 'rollbar'
   gem 'rb-inotify', '~> 0.9', require: false
   gem 'rspec_junit_formatter', '~> 0.3.0'
 end
