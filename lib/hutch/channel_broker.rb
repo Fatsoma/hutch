@@ -84,21 +84,28 @@ module Hutch
       @exchange = declare_exchange(*args)
     end
 
+    def declare_wait_exchange(expiration)
+      suffix = expiration.to_s
+      logger.info "using wait exchange with expiration suffix '_#{suffix}'"
+
+      suffix_exchange = _declare_wait_exchange("#{@config[:mq_wait_exchange]}_#{suffix}")
+      @wait_exchanges ||= {}
+      @wait_exchanges[suffix] = suffix_exchange
+
+      declare_wait_queue(suffix_exchange, "#{@config[:mq_wait_queue]}_#{suffix}")
+      suffix_exchange
+    end
+
     private
 
     def set_up_wait_exchanges
-      wait_exchange_name = @config[:mq_wait_exchange]
-      wait_queue_name = @config[:mq_wait_queue]
-
       expiration_suffices = (@config[:mq_wait_expiration_suffices] || []).map(&:to_s)
 
-      @wait_exchanges = expiration_suffices.each_with_object({}) do |suffix, hash|
-        logger.info "using expiration suffix '_#{suffix}'"
-
-        suffix_exchange = declare_wait_exchange("#{wait_exchange_name}_#{suffix}")
-        hash[suffix] = suffix_exchange
-        declare_wait_queue(suffix_exchange, "#{wait_queue_name}_#{suffix}")
+      @wait_exchanges = {}
+      expiration_suffices.each do |suffix|
+        declare_wait_exchange(suffix)
       end
+      @wait_exchanges
     end
 
     def set_up_default_wait_exchange
@@ -107,7 +114,7 @@ module Hutch
 
       logger.info "using fanout wait exchange '#{wait_exchange_name}'"
 
-      @default_wait_exchange = declare_wait_exchange(wait_exchange_name)
+      @default_wait_exchange = _declare_wait_exchange(wait_exchange_name)
 
       logger.info "using wait queue '#{wait_queue_name}'"
 
@@ -115,7 +122,7 @@ module Hutch
       @default_wait_exchange
     end
 
-    def declare_wait_exchange(name)
+    def _declare_wait_exchange(name)
       with_bunny_precondition_handler('exchange') do
         channel.fanout(name, durable: true)
       end

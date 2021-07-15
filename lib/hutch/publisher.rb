@@ -67,7 +67,12 @@ module Hutch
                            .merge(properties)
                            .merge(global_properties)
                            .merge(non_overridable_properties)
-      exchange = wait_exchanges.fetch(message_properties[:expiration].to_s, default_wait_exchange)
+      expiration = message_properties[:expiration]
+      exchange = default_wait_exchange
+      if expiration
+        exchange = wait_exchanges[expiration.to_s]
+        exchange ||= broker.declare_wait_exchange(expiration.to_s)
+      end
 
       log_publication(serializer, payload, routing_key, exchange)
 
