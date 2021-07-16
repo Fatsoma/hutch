@@ -93,4 +93,40 @@ describe Hutch::ChannelBroker do
       it { is_expected.to be_falsey }
     end
   end
+
+  describe '#declare_wait_exchange' do
+    let(:expiration) { rand(1000..1_000_000) }
+    let(:suffix) { expiration.to_s }
+    let(:new_exchange) { double('Exchange') }
+    let(:new_queue) { double('Queue') }
+    let(:exchange_name) { "wait-exchange_#{suffix}" }
+    let(:queue_name) { "wait-queue_#{suffix}" }
+    let(:main_exchange_name) { 'main-exchange' }
+    let(:queues) { channel_broker.channel.queues }
+
+    before do
+      channel_broker.instance_variable_set('@channel', channel)
+      config[:mq_wait_exchange] = 'wait-exchange'
+      config[:mq_wait_queue] = 'wait-queue'
+      config[:mq_exchange] = main_exchange_name
+
+      allow(channel).to receive(:active).and_return(true)
+      allow(channel).to receive(:fanout).and_return(new_exchange)
+      allow(channel).to receive(:queue).and_return(new_queue)
+      allow(new_queue).to receive(:bind).and_return(new_queue)
+    end
+
+    subject! { channel_broker.declare_wait_exchange(expiration) }
+
+    it do
+      expect(channel).to have_received(:fanout).with(exchange_name, durable: true)
+      expect(channel).to have_received(:queue)
+        .with(queue_name,
+              durable: true,
+              arguments: { 'x-dead-letter-exchange' => main_exchange_name })
+      expect(channel_broker.instance_variable_get(:@wait_exchanges)[suffix])
+        .to eq(new_exchange)
+      is_expected.to eq(new_exchange)
+    end
+  end
 end

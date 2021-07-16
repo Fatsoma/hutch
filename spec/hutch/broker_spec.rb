@@ -605,16 +605,28 @@ describe Hutch::Broker do
 
         context 'with message expiration not in configured suffices' do
           let(:expiration) { (expiration_suffices.map(&:to_i).max + 10_000).to_s }
-          it 'publishes to the default exchange' do
-            expect(broker.default_wait_exchange).to receive(:publish).once
+          let(:new_exchange) do
+            double('Exchange', name: "wait-exchange_#{expiration}")
+          end
+
+          before do
+            allow(broker).to receive(:declare_wait_exchange).and_return(new_exchange)
+            allow(broker.default_wait_exchange).to receive(:publish)
+            allow(new_exchange).to receive(:publish)
+          end
+
+          subject! do
             broker.publish_wait('test.key', { key: 'value' }, { expiration: expiration })
           end
 
-          it 'does not publish to suffixed exchanges' do
-            broker.wait_exchanges.each do |_name, exchange|
-              expect(exchange).not_to receive(:publish)
-            end
-            broker.publish_wait('test.key', { key: 'value' }, { expiration: expiration })
+          it 'publishes to a new wait exchange' do
+            expect(broker).to have_received(:declare_wait_exchange).with(expiration)
+            expect(new_exchange).to have_received(:publish)
+              .with('{"key":"value"}', hash_including(expiration: expiration))
+          end
+
+          it 'does not publish to default wait exchange' do
+            expect(broker.default_wait_exchange).not_to have_received(:publish)
           end
         end
 

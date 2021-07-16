@@ -132,6 +132,10 @@ module Hutch
       channel_broker.declare_exchange!(*args)
     end
 
+    def declare_wait_exchange(expiration)
+      channel_broker.declare_wait_exchange(expiration)
+    end
+
     def declare_publisher!
       @publisher = Hutch::Publisher.new(connection, self, @config)
     end
