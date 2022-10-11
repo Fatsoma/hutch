@@ -19,13 +19,15 @@ group :development, :test do
   gem 'rspec', '~> 3.5'
   gem 'simplecov', '~> 0.12'
 
-  gem 'sentry-raven'
-  gem 'honeybadger'
-  gem 'coveralls', '~> 0.8.15', require: false
-  gem 'newrelic_rpm'
-  gem 'airbrake', '~> 9.0'
-  gem 'rollbar'
-  gem 'rb-inotify', '~> 0.9', require: false
+  gem "sentry-raven"
+  gem "sentry-ruby"
+  gem "honeybadger"
+  gem "coveralls", "~> 0.8.15", require: false
+  gem "newrelic_rpm"
+  gem "ddtrace"
+  gem "airbrake", "~> 10.0"
+  gem "rollbar"
+  gem "bugsnag"
   gem 'rspec_junit_formatter', '~> 0.3.0'
 end
 

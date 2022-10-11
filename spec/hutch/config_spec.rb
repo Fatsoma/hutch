@@ -32,11 +32,11 @@ describe Hutch::Config do
 
     context 'for invalid attributes' do
       let(:invalid_get) do
-        -> { Hutch::Config.get(:invalid_attr) }
+        Hutch::Config.get(:invalid_attr)
       end
 
       specify do
-        expect(invalid_get).to raise_error Hutch::UnknownAttributeError
+        expect { invalid_get }.to raise_error Hutch::UnknownAttributeError
       end
     end
   end
@@ -49,15 +49,53 @@ describe Hutch::Config do
       context 'sets value in user config hash' do
         it { is_expected.to eq(new_value) }
       end
+
+      context 'type casting' do
+        context 'number attributes' do
+          before  { Hutch::Config.set(:heartbeat, new_value) }
+          subject(:value) { Hutch::Config.user_config[:heartbeat] }
+
+          let(:new_value) { "0" }
+
+
+          specify 'casts values to integers' do
+            expect(value).to eq 0
+          end
+        end
+      end
+
+      context 'boolean attributes' do
+        before  { Hutch::Config.set(:autoload_rails, new_value) }
+        subject(:value) { Hutch::Config.user_config[:autoload_rails] }
+
+        let(:new_value) { "t" }
+
+
+        specify 'casts values to booleans' do
+          expect(value).to eq true
+        end
+      end
+
+      context 'string attributes' do
+        before  { Hutch::Config.set(:mq_exchange_type, new_value) }
+        subject(:value) { Hutch::Config.user_config[:mq_exchange_type] }
+
+        let(:new_value) { 1 }
+
+
+        specify 'does not perform any typecasting' do
+          expect(value).to eq new_value
+        end
+      end
     end
 
     context 'for invalid attributes' do
       let(:invalid_set) do
-        -> { Hutch::Config.set(:invalid_attr, new_value) }
+        Hutch::Config.set(:invalid_attr, new_value)
       end
 
       specify do
-        expect(invalid_set).to raise_error Hutch::UnknownAttributeError
+        expect { invalid_set }.to raise_error Hutch::UnknownAttributeError
       end
     end
   end
@@ -71,8 +109,8 @@ describe Hutch::Config do
     end
 
     context 'for an invalid attribute' do
-      let(:invalid_getter) { -> { Hutch::Config.invalid_attr } }
-      specify { expect(invalid_getter).to raise_error NoMethodError }
+      let(:invalid_getter) { Hutch::Config.invalid_attr }
+      specify { expect { invalid_getter }.to raise_error NoMethodError }
     end
 
     context 'for an ENV-overriden value attribute' do
@@ -109,8 +147,8 @@ describe Hutch::Config do
     end
 
     context 'for an invalid attribute' do
-      let(:invalid_setter) { -> { Hutch::Config.invalid_attr = new_value } }
-      specify { expect(invalid_setter).to raise_error NoMethodError }
+      let(:invalid_setter) { Hutch::Config.invalid_attr = new_value }
+      specify { expect { invalid_setter }.to raise_error NoMethodError }
     end
   end
 

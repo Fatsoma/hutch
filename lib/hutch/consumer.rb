@@ -29,16 +29,45 @@ module Hutch
       # wants to subscribe to.
       def consume(*routing_keys)
         @routing_keys = self.routing_keys.union(routing_keys)
+        # these are opt-in
+        @queue_mode = nil
+        @queue_type = nil
       end
+
+      attr_reader :queue_mode, :queue_type, :initial_group_size
 
       # Explicitly set the queue name
       def queue_name(name)
         @queue_name = name
       end
 
-      # Allow to specify custom arguments that will be passed when creating the queue.
+      # Explicitly set the queue mode to 'lazy'
+      def lazy_queue
+        @queue_mode = 'lazy'
+      end
+
+      # Explicitly set the queue type to 'classic'
+      def classic_queue
+        @queue_type = 'classic'
+      end
+
+      # Explicitly set the queue type to 'quorum'
+      # @param [Hash] options the options params related to quorum queue
+      # @option options [Integer] :initial_group_size Initial Replication Factor
+      def quorum_queue(options = {})
+        @queue_type = 'quorum'
+        @initial_group_size = options[:initial_group_size]
+      end
+
+      # Configures an optional argument that will be passed when declaring the queue.
+      # Prefer using a policy to this DSL: https://www.rabbitmq.com/parameters.html#policies
       def arguments(arguments = {})
         @arguments = arguments
+      end
+
+      # Congfiures queue options that will be passed when declaring the queue.
+      def queue_options(options = {})
+        @queue_options = options
       end
 
       # Set custom serializer class, override global value
@@ -58,7 +87,22 @@ module Hutch
 
       # Returns consumer custom arguments.
       def get_arguments
-        @arguments || {}
+        all_arguments = @arguments || {}
+
+        all_arguments['x-queue-mode'] = @queue_mode if @queue_mode
+        all_arguments['x-queue-type'] = @queue_type if @queue_type
+        all_arguments['x-quorum-initial-group-size'] = @initial_group_size if @initial_group_size
+
+        all_arguments
+      end
+
+      def get_options
+        default_options = { durable: true }
+
+        all_options = default_options.merge(@queue_options || {})
+        all_options[:arguments] = get_arguments
+
+        all_options
       end
 
       # Accessor for the consumer's routing key.

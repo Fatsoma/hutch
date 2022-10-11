@@ -1,7 +1,149 @@
-## 0.28.0 (under development)
+## 1.1.1 (March 18th, 2022)
+### Dependency Bump
 
-No chages yet.
+Hutch now allows ActiveSupport 7.x.
 
+
+## 1.1.0 (July 26th, 2021)
+
+### Bugsnag Error Handler
+
+Contributed by @ivanhuang1.
+
+GitHub issue: [#362](https://github.com/ruby-amqp/hutch/pull/362)
+
+### Datadog Tracer
+
+Contributed by Karol @Azdaroth Galanciak.
+
+GitHub issue: [#360](https://github.com/ruby-amqp/hutch/pull/360)
+
+### Updated Sentry Error Handler
+
+Contributed by Karol @Azdaroth Galanciak.
+
+GitHub issue: [#363](https://github.com/ruby-amqp/hutch/pull/363)
+
+### Type Casting for Values Set Using Hutch::Config.set
+
+Values set with `Hutch::Config.set` now have expected setting type casting
+applied to them.
+
+Contributed by Karol @Azdaroth Galanciak.
+
+GitHub issue: [#358](https://github.com/ruby-amqp/hutch/pull/358)
+
+### Wider MultiJson Adoption
+
+Contributed by Ulysse @BuonOmo Buonomo.
+
+GitHub issue: [#356](https://github.com/ruby-amqp/hutch/pull/356)
+
+### README Corrections
+
+Contributed by Johan @johankok Kok.
+
+GitHub issue: [#353](https://github.com/ruby-amqp/hutch/pull/353)
+
+## 1.0.0 (April 8th, 2020)
+
+Hutch has been around for several years. It is time to ship a 1.0. With it we try to correct
+a few of overly opinionated decisions from recent releases. This means this release
+contains potentially breaking changes.
+
+### Breaking Changes
+
+ * Hutch will no longer configure any queue type (such as [quorum queues](https://www.rabbitmq.com/quorum-queues.html))
+   or queue mode (used by classic [lazy queues](https://www.rabbitmq.com/lazy-queues.html))
+   by default as that can be breaking change for existing Hutch and RabbitMQ installations due to the
+   [property equivalence requirement](https://www.rabbitmq.com/queues.html#property-equivalence) in AMQP 0-9-1.
+
+   This means **some defaults introduced in `0.28.0` ([gocardless/hutch#341](https://github.com/gocardless/hutch/pull/341)) were reverted**.
+   The user has to opt in to configure the queue type and mode and other [optional arguments](https://www.rabbitmq.com/queues.html#optional-arguments) they need to use.
+   Most optional arguments can be set via [policies](https://www.rabbitmq.com/parameters.html#policies) which is always the recommended approach. 
+   Queue type, unfortunately, is not one of them as different queue types have completely different
+   implementation details, on disk data formats and so on.
+
+   To use a quorum queue, use the `quorum_queue` consumer DSL method:
+
+   ``` ruby
+   class ConsumerUsingQuorumQueue
+      include Hutch::Consumer
+      consume 'hutch.test1'
+      # when in doubt, prefer using a policy to this DSL
+      # https://www.rabbitmq.com/parameters.html#policies
+      arguments 'x-key': :value
+        
+      quorum_queue
+   end
+   ```
+
+   To use a classic lazy queue, use the `lazy_queue` consumer DSL method:
+
+   ``` ruby
+   class ConsumerUsingLazyQueue
+     include Hutch::Consumer
+     consume 'hutch.test1'
+     # when in doubt, prefer using a policy to this DSL
+      # https://www.rabbitmq.com/parameters.html#policies
+      arguments 'x-key': :value
+     
+     lazy_queue
+     classic_queue
+   end
+   ```
+
+   By default Hutch will not configure any `x-queue-type` or `x-queue-mode` optional arguments
+   which is identical to RabbitMQ defaults (a regular classic queue).
+
+   Note that as of RabbitMQ 3.8.2, an omitted `x-queue-type` is [considered to be identical](https://github.com/rabbitmq/rabbitmq-common/issues/341)
+   to `x-queue-type` set to `classic` by RabbitMQ server.
+
+
+   #### Enhancements
+
+    * Exchange type is now configurable via the `mq_exchange_type` config setting. Supported exchanges must be
+      compatible with topic exchanges (e.g. wrap it). Default value is `topic`.
+
+      This feature is limited to topic and delayed message exchange plugins and is mostly
+      useful for forward compatibility.
+
+      Contributed by Michael Bumann.
+
+      GitHub issue: [gocardless/hutch#349](https://github.com/gocardless/hutch/pull/349)
+
+
+## 0.28.0 (March 17, 2020)
+
+### Enhancements
+
+  * Add lazy and quorum options for queues.
+
+    GitHub issue: [gocardless/hutch#341](https://github.com/gocardless/hutch/pull/341)
+
+    Contributed by: Arthur Del Esposte
+
+  * Log level in the message publisher switched to DEBUG.
+
+    GitHub issue: [gocardless/hutch#343](https://github.com/gocardless/hutch/pull/343)
+
+    Contributed by: Codruț Constantin Gușoi
+
+### Documentation
+
+  * Add zeitwerk note to README.
+
+    GitHub issue: [gocardless/hutch#342](https://github.com/gocardless/hutch/pull/342)
+
+    Contributed by: Paolo Zaccagnini
+
+### CI
+
+  * Use jruby-9.2.9.0
+
+    GitHub issue: [gocardless/hutch#336](https://github.com/gocardless/hutch/pull/336)
+
+    Contributed by: Olle Jonsson
 
 ## 0.27.0 (September 9th, 2019)
 
