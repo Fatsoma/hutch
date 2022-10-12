@@ -28,6 +28,32 @@ describe Hutch::Consumer do
     ComplexConsumer
   end
 
+  let(:consumer_using_quorum_queue) do
+    unless defined? ConsumerUsingQuorumQueue
+      class ConsumerUsingQuorumQueue
+        include Hutch::Consumer
+        consume 'hutch.test1'
+        arguments foo: :bar
+        
+        quorum_queue
+      end
+    end
+    ConsumerUsingQuorumQueue
+  end
+
+  let(:consumer_using_classic_queue) do
+    unless defined? ConsumerUsingLazyQueue
+      class ConsumerUsingLazyQueue
+        include Hutch::Consumer
+        consume 'hutch.test1'
+        arguments foo: :bar
+        lazy_queue
+        classic_queue
+      end
+    end
+    ConsumerUsingLazyQueue
+  end
+
   describe 'module inclusion' do
     it 'registers the class as a consumer' do
       expect(Hutch).to receive(:register_consumer) do |klass|
@@ -70,6 +96,43 @@ describe Hutch::Consumer do
     end
   end
 
+  describe 'default queue mode' do
+    it 'does not specify any mode by default' do
+      expect(simple_consumer.queue_mode).to eq(nil)
+      expect(simple_consumer.queue_type).to eq(nil)
+    end
+  end
+
+  describe '.lazy_queue' do
+    context 'when queue mode has been set explicitly to lazy' do
+      it 'sets queue mode to lazy' do
+        expect(consumer_using_classic_queue.queue_mode).to eq('lazy')
+      end
+    end
+  end
+
+  describe '.classic_queue' do
+    context 'when queue type has been set explicitly to classic' do
+      it 'sets queue type to classic' do
+        expect(consumer_using_classic_queue.queue_type).to eq('classic')
+      end
+    end
+  end
+
+  describe '.quorum_queue' do
+    context 'when queue type has been set explicitly to quorum' do
+      it 'sets queue type to quorum' do
+        expect(consumer_using_quorum_queue.queue_type).to eq('quorum')
+      end
+
+      it 'accepts initial group size as an option' do
+        consumer = simple_consumer
+        expect { consumer.quorum_queue(initial_group_size: 3) }
+          .to change { consumer.initial_group_size }.to(3)
+      end
+    end
+  end
+
   describe '.arguments' do
     let(:args) { { foo: :bar } }
 
@@ -81,11 +144,28 @@ describe Hutch::Consumer do
 
   describe '.get_arguments' do
     context 'when defined' do
-      it { expect(complex_consumer.get_arguments).to eq(foo: :bar) }
+      it { expect(complex_consumer.get_arguments).to include(foo: :bar) }
     end
 
-    context 'when not defined' do
-      it { expect(simple_consumer.get_arguments).to eq({}) }
+    context 'when queue is lazy' do
+      it 'has the x-queue-mode argument set to lazy' do
+        expect(consumer_using_classic_queue.get_arguments['x-queue-mode'])
+          .to eq('lazy')
+      end
+    end
+
+    context "when queue's type is quorum" do
+      let(:arguments) { consumer_using_quorum_queue.get_arguments }
+      it 'has the x-queue-type argument set to quorum' do
+        expect(arguments['x-queue-type']).to eq('quorum')
+        expect(arguments).to_not have_key('x-quorum-initial-group-size')
+      end
+
+      it 'has the x-quorum-initial-group-size argument set to quorum' do
+        consumer_using_quorum_queue.quorum_queue(initial_group_size: 5)
+        expect(arguments['x-queue-type']).to eq('quorum')
+        expect(arguments['x-quorum-initial-group-size']).to eq(5)
+      end
     end
   end
 
