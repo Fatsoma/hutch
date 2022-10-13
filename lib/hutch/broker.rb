@@ -125,14 +125,7 @@ module Hutch
     end
 
     def declare_exchange(ch = channel)
-      exchange_name = @config[:mq_exchange]
-      exchange_type = @config[:mq_exchange_type]
-      exchange_options = { durable: true }.merge(@config[:mq_exchange_options])
-      logger.info "using topic exchange '#{exchange_name}'"
-
-      with_bunny_precondition_handler('exchange') do
-        Adapter.new_exchange(ch, exchange_type, exchange_name, exchange_options)
-      end
+      channel_broker.declare_exchange(ch)
     end
 
     def declare_exchange!(*args)
