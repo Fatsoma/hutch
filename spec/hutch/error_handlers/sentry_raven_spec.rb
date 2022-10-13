@@ -1,30 +1,21 @@
 require 'spec_helper'
 
-describe Hutch::ErrorHandlers::Sentry do
-  let(:error_handler) { Hutch::ErrorHandlers::Sentry.new }
-
-  before do
-    Sentry.init do
-      # initialize Sentry so that the integration acutally works
-      # otherwise, all its methods are going to return early
-      # so it will be impossible to check if it actually works
-    end
-  end
+describe Hutch::ErrorHandlers::SentryRaven do
+  let(:error_handler) { Hutch::ErrorHandlers::SentryRaven.new }
 
   describe '#handle' do
     let(:properties) { OpenStruct.new(message_id: "1") }
     let(:payload) { "{}" }
     let(:error) do
       begin
-        raise 'Stuff went wrong'
+        raise "Stuff went wrong"
       rescue RuntimeError => err
         err
       end
     end
 
     it "logs the error to Sentry" do
-      expect(::Sentry).to receive(:capture_exception).with(error).and_call_original
-
+      expect(Raven).to receive(:capture_exception).with(error, extra: { payload: payload })
       error_handler.handle(properties, payload, double, error)
     end
   end
@@ -39,8 +30,7 @@ describe Hutch::ErrorHandlers::Sentry do
     end
 
     it "logs the error to Sentry" do
-      expect(::Sentry).to receive(:capture_exception).with(error).and_call_original
-
+      expect(Raven).to receive(:capture_exception).with(error)
       error_handler.handle_setup_exception(error)
     end
   end

@@ -1,7 +1,6 @@
 ![](http://cl.ly/image/3h0q3F3G142K/hutch.png)
 
 [![Gem Version](https://badge.fury.io/rb/hutch.svg)](http://badge.fury.io/rb/hutch)
-[![Build Status](https://travis-ci.org/gocardless/hutch.svg?branch=master)](https://travis-ci.org/gocardless/hutch)
 [![Code Climate](https://codeclimate.com/github/gocardless/hutch.svg)](https://codeclimate.com/github/gocardless/hutch)
 
 Hutch is a Ruby library for enabling asynchronous inter-service communication
@@ -41,7 +40,7 @@ gem install hutch
 
 ## Requirements
 
-- Hutch requires Ruby 2.3+ or JRuby 9K.
+- Hutch requires Ruby 2.4+ or JRuby 9K.
 - Hutch requires RabbitMQ 3.3 or later.
 
 ## Overview
@@ -61,8 +60,8 @@ Hutch uses [Bunny](http://rubybunny.info) or [March Hare](http://rubymarchhare.i
 ### Project Maturity
 
 Hutch is a mature project that was originally extracted from production systems
-at [GoCardless](https://gocardless.com) in 2013 and is now maintained by a large
-group of contributors.
+at [GoCardless](https://gocardless.com) in 2013 and is now maintained by its contributors
+and users.
 
 ## Consumers
 
@@ -104,6 +103,28 @@ class FailedPaymentConsumer
   include Hutch::Consumer
   consume 'gc.ps.payment.failed'
   queue_name 'failed_payments'
+
+  def process(message)
+    mark_payment_as_failed(message[:id])
+  end
+end
+```
+
+It is possible to set some custom options to consumer's queue explicitly.
+This example sets the consumer's queue as a
+[quorum queue](https://www.rabbitmq.com/quorum-queues.html)
+and to operate in the [lazy mode](https://www.rabbitmq.com/lazy-queues.html).
+The `initial_group_size`
+[argument](https://www.rabbitmq.com/quorum-queues.html#replication-factor) is
+optional.
+
+```ruby
+class FailedPaymentConsumer
+  include Hutch::Consumer
+  consume 'gc.ps.payment.failed'
+  queue_name 'failed_payments'
+  lazy_queue
+  quorum_queue initial_group_size: 3
 
   def process(message)
     mark_payment_as_failed(message[:id])
@@ -168,6 +189,12 @@ This will enable NewRelic custom instrumentation:
 Hutch::Config.set(:tracer, Hutch::Tracers::NewRelic)
 ```
 
+And this will enable Datadog custom instrumentation:
+
+```ruby
+Hutch::Config.set(:tracer, Hutch::Tracers::Datadog)
+```
+
 Batteries included!
 
 ## Running Hutch
@@ -226,13 +253,55 @@ directory of a Rails app, or pass the path to a Rails app in with the
 the `app/consumers/` directory, to allow them to be auto-loaded when Rails
 boots.
 
+If you're using the new Zeitwerk autoloader (enabled by default in Rails 6)
+and the consumers are not loaded in development environment you will need to
+trigger the autoloading in an initializer with
+
+```ruby
+::Zeitwerk::Loader.eager_load_all
+```
+
+or with something more specific like
+
+```ruby
+autoloader = Rails.autoloaders.main
+
+Dir.glob(File.join('app/consumers', '*_consumer.rb')).each do |consumer|
+  autoloader.preload(consumer)
+end
+```
+
+### Consumer Groups
+
+It is possible to load only a subset of consumers. This is done by defining a consumer
+group under the `consumer_groups` configuration key:
+
+``` yaml
+consumer_groups:
+  payments:
+    - DepositConsumer
+    - CashoutConsumer
+  notification:
+    - EmailNotificationConsumer
+```
+
+To only load a group of consumers, use the `--only-group` option:
+
+``` shell
+hutch --only-group=payments --config=/path/to/hutch.yaml
+```
+
+### Loading Consumers Manually (One-by-One)
+
 To require files that define consumers manually, simply pass each file as an
 option to `--require`. Hutch will automatically detect whether you've provided
 a Rails app or a standard file, and take the appropriate behaviour:
 
 ```bash
-$ hutch --require path/to/rails-app  # loads a rails app
-$ hutch --require path/to/file.rb    # loads a ruby file
+# loads a rails app
+hutch --require path/to/rails-app
+# loads a ruby file
+hutch --require path/to/file.rb
 ```
 
 ### Stopping Hutch
@@ -375,6 +444,7 @@ Known configuration parameters are:
  * `automatically_recover`: Bunny's enable/disable network recovery (default: `true`)
  * `network_recovery_interval`: Bunny's reconnect interval (default: `1`)
  * `tracer`: tracer to use to track message processing
+ * `namespace`: A namespace string to help group your queues (default: `nil`)
 
 ### Environment variables
 
@@ -432,6 +502,13 @@ Generate with
       <td>String</td>
       <td><tt>HUTCH_MQ_EXCHANGE</tt></td>
       <td><p>RabbitMQ Exchange to use for publishing</p></td>
+    </tr>
+    <tr>
+      <td><tt>mq_exchange_type</tt></td>
+      <td>topic</td>
+      <td>String</td>
+      <td><tt>HUTCH_MQ_EXCHANGE_TYPE</tt></td>
+      <td><p>RabbitMQ Exchange type to use for publishing</p></td>
     </tr>
     <tr>
       <td><tt>mq_vhost</tt></td>
@@ -614,6 +691,20 @@ Generate with
       <td>String</td>
       <td><tt>HUTCH_CONSUMER_TAG_PREFIX</tt></td>
       <td><p>Prefix displayed on the consumers tags.</p></td>
+    </tr>
+    <tr>
+      <td><tt>namespace</tt></td>
+      <td>nil</td>
+      <td>String</td>
+      <td><tt>HUTCH_NAMESPACE</tt></td>
+      <td><p>A namespace to help group your queues</p></td>
+    </tr>
+    <tr>
+      <td><tt>group</tt></td>
+      <td>''</td>
+      <td>String</td>
+      <td><tt>HUTCH_GROUP</tt></td>
+      <td></td>
     </tr>
   </tbody>
 </table>
