@@ -1,5 +1,3 @@
-require 'bunny'
-
 module Hutch
   module BrokerHandlers
     def with_authentication_error_handler
