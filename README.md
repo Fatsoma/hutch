@@ -16,25 +16,27 @@ gem install hutch
 
 ### Table of Contents
 
-  - [Requirements](#requirements)
-  - [Overview](#overview)
-    - [Project Maturity](#project-maturity)
-  - [Consumers](#consumers)
-    - [Message Processing Tracers](#message-processing-tracers)
-  - [Running Hutch](#running-hutch)
-    - [Loading Consumers](#loading-consumers)
-    - [Stopping Hutch](#stopping-hutch)
-  - [Producers](#producers)
-    - [Producer Configuration](#producer-configuration)
-    - [Publisher Confirms](#publisher-confirms)
-    - [Writing Well-Behaved Publishers](#writing-well-behaved-publishers)
-  - [Wait exchange](#wait-exchange)
-    - [Expiration suffices](#expiration-suffices)
-  - [Configuration](#configuration)
-    - [Config File](#config-file)
-    - [Environment variables](#environment-variables)
-    - [Configuration precedence](#configuration-precedence)
-    - [Generated list of configuration options](#generated-list-of-configuration-options)
+- [Requirements](#requirements)
+- [Overview](#overview)
+  - [Project Maturity](#project-maturity)
+- [Consumers](#consumers)
+  - [Message Processing Tracers](#message-processing-tracers)
+- [Running Hutch](#running-hutch)
+  - [Loading Consumers](#loading-consumers)
+  - [Consumer Groups](#consumer-groups)
+  - [Loading Consumers Manually (One-by-One)](#loading-consumers-manually-one-by-one)
+  - [Stopping Hutch](#stopping-hutch)
+- [Producers](#producers)
+  - [Producer Configuration](#producer-configuration)
+  - [Publisher Confirms](#publisher-confirms)
+  - [Writing Well-Behaved Publishers](#writing-well-behaved-publishers)
+- [Wait exchange](#wait-exchange)
+  - [Expiration suffices](#expiration-suffices)
+- [Configuration](#configuration)
+  - [Config File](#config-file)
+  - [Environment variables](#environment-variables)
+  - [Configuration precedence](#configuration-precedence)
+  - [Generated list of configuration options](#generated-list-of-configuration-options)
 
 <!-- Tocer[finish]: Auto-generated, don't remove. -->
 
@@ -435,6 +437,7 @@ Known configuration parameters are:
  * `error_acknowledgements`: a chain of responsibility of objects that acknowledge/reject/requeue messages when an
     exception happens, see classes in `Hutch::Acknowledgements`.
  * `mq_exchange`: exchange to use for publishing (default: `hutch`)
+ * `mq_client_properties`: Bunny's [client properties](https://www.rabbitmq.com/docs/connections#capabilities) (default: `{}`)
  * `mq_wait_exchange`: exchange to use for waiting. Leave unset to not use a wait exchange.
  * `mq_wait_queue`: queue to use for waiting (default: `wait-queue`)
  * `heartbeat`: [RabbitMQ heartbeat timeout](http://rabbitmq.com/heartbeats.html) (default: `30`)
@@ -572,6 +575,13 @@ Generate with
       <td>Number</td>
       <td><tt>HUTCH_CHANNEL_PREFETCH</tt></td>
       <td><p>The <tt>basic.qos</tt> prefetch value to use.</p></td>
+    </tr>
+    <tr>
+      <td><tt>connection_name</tt></td>
+      <td>nil</td>
+      <td>String</td>
+      <td><tt>HUTCH_CONNECTION_NAME</tt></td>
+      <td><p><a href="https://www.rabbitmq.com/docs/connections#client-provided-names">Client-Provided Connection Name</a></p></td>
     </tr>
     <tr>
       <td><tt>connection_timeout</tt></td>

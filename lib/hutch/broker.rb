@@ -2,6 +2,7 @@ require 'active_support/core_ext/object/blank'
 
 require 'carrot-top'
 require 'forwardable'
+require 'ostruct'
 require 'hutch/logging'
 require 'hutch/exceptions'
 require 'hutch/publisher'
@@ -296,6 +297,7 @@ module Hutch
         params[:host]               = @config[:mq_host]
         params[:port]               = @config[:mq_port]
         params[:vhost]              = @config[:mq_vhost].presence || Hutch::Adapter::DEFAULT_VHOST
+        params[:auth_mechanism]     = @config[:mq_auth_mechanism]
         params[:username]           = @config[:mq_username]
         params[:password]           = @config[:mq_password]
         params[:tls]                = @config[:mq_tls]
@@ -306,6 +308,8 @@ module Hutch
           params[:tls_ca_certificates] = @config[:mq_tls_ca_certificates]
         end
         params[:heartbeat]          = @config[:heartbeat]
+        params[:client_properties]  = @config[:mq_client_properties]
+        params[:connection_name]    = @config[:connection_name]
         params[:connection_timeout] = @config[:connection_timeout]
         params[:read_timeout]       = @config[:read_timeout]
         params[:write_timeout]      = @config[:write_timeout]
