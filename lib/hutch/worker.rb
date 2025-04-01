@@ -1,6 +1,7 @@
 require 'hutch/message'
 require 'hutch/logging'
 require 'hutch/broker'
+require 'hutch/acknowledgements/nack_on_all_failures'
 require 'hutch/waiter'
 require 'carrot-top'
 require 'securerandom'
@@ -11,7 +12,6 @@ module Hutch
 
     def initialize(broker, consumers, setup_procs)
       @broker        = broker
-      self.waiter    = Waiter.new(broker)
       self.consumers = consumers
       self.setup_procs = setup_procs
     end
@@ -20,12 +20,10 @@ module Hutch
     # process the messages in their respective queues indefinitely. This method
     # never returns.
     def run
-      waiter.register_handlers
-
       setup_queues
       setup_procs.each(&:call)
 
-      waiter.wait_until_signaled
+      Waiter.wait_until_signaled
 
       stop
     end
@@ -60,28 +58,24 @@ module Hutch
 
     # Called internally when a new messages comes in from RabbitMQ. Responsible
     # for wrapping up the message and passing it to the consumer.
-    # rubocop:disable Metrics/CyclomaticComplexity
     def handle_message(consumer, delivery_info, properties, payload)
       serializer = consumer.get_serializer || Hutch::Config[:serializer]
-      logger.debug do
-        spec = serializer.binary? ? "#{payload.bytesize} bytes" : "#{payload}"
-        "message(#{properties.message_id || '-'}): " \
-        "routing key: #{delivery_info.routing_key}, " \
-        "consumer: #{consumer}, " \
+      logger.debug {
+        spec   = serializer.binary? ? "#{payload.bytesize} bytes" : "#{payload}"
+        "message(#{properties.message_id || '-'}): " +
+        "routing key: #{delivery_info.routing_key}, " +
+        "consumer: #{consumer}, " +
         "payload: #{spec}"
-      end
+      }
 
       message = Message.new(delivery_info, properties, payload, serializer)
-      consumer_instance = consumer.new
-      consumer_instance.broker = @broker
-      consumer_instance.delivery_info = delivery_info
+      consumer_instance = consumer.new.tap { |c| c.broker, c.delivery_info = @broker, delivery_info }
       with_tracing(consumer_instance).handle(message)
       @broker.ack(delivery_info.delivery_tag) unless consumer_instance.message_rejected?
     rescue => ex
       acknowledge_error(delivery_info, properties, @broker, ex)
       handle_error(properties, payload, consumer, ex, delivery_info)
     end
-    # rubocop:enable Metrics/CyclomaticComplexity
 
     def with_tracing(klass)
       Hutch::Config[:tracer].new(klass)
@@ -93,11 +87,23 @@ module Hutch
       end
     end
 
+    def acknowledge_error(delivery_info, properties, broker, ex)
+      acks = error_acknowledgements +
+        [Hutch::Acknowledgements::NackOnAllFailures.new]
+      acks.find do |backend|
+        backend.handle(delivery_info, properties, broker, ex)
+      end
+    end
+
     def consumers=(val)
       if val.empty?
         logger.warn "no consumer loaded, ensure there's no configuration issue"
       end
       @consumers = val
+    end
+
+    def error_acknowledgements
+      Hutch::Config[:error_acknowledgements]
     end
 
     private
@@ -126,7 +132,7 @@ module Hutch
       Hutch::Config[:consumer_groups]
     end
 
-    attr_accessor :setup_procs, :waiter
+    attr_accessor :setup_procs
 
     def unique_consumer_tag
       prefix = Hutch::Config[:consumer_tag_prefix]

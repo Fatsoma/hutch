@@ -2,12 +2,12 @@ version: 2
 jobs:
   build:
     docker:
-      - image: circleci/ruby:2.7.0
+      - image: cimg/ruby:2.7.5
 
       # Specify service dependencies here if necessary
       # CircleCI maintains a library of pre-built images
       # documented at https://circleci.com/docs/2.0/circleci-images/
-      - image: rabbitmq:3.6.11-management
+      - image: rabbitmq:3-management-alpine
 
     working_directory: ~/repo
 
