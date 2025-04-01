@@ -22,7 +22,7 @@ jobs:
       # Wait for RabbitMQ to be available
       - run:
           name: wait for rabbitmq
-          command: while ! ss -lnt | grep ":5672\>" ; do sleep 0.5 ; done
+          command: dockerize -wait tcp://localhost:5672 -timeout 1m
 
       # run tests!
       - run:
