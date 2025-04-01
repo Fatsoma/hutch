@@ -17,6 +17,7 @@ end
 
 group :development, :test do
   gem "rspec", "~> 3.12"
+  gem "rspec_junit_formatter"
   gem "simplecov", "~> 0.21"
 
   gem "sentry-raven"
