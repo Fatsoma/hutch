@@ -2,6 +2,7 @@ require 'active_support/core_ext/object/blank'
 
 require 'carrot-top'
 require 'forwardable'
+require 'ostruct'
 require 'hutch/logging'
 require 'hutch/exceptions'
 require 'hutch/publisher'
