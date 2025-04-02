@@ -1,13 +1,10 @@
 name: Test
 
-concurrency: 
+concurrency:
   group: ${{ github.ref }}
   cancel-in-progress: true
 
-on:
-  push:
-    branches: [ master ]
-  pull_request:
+on: [push,pull_request,workflow_dispatch]
 
 jobs:
   test:
@@ -25,16 +22,15 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        ruby-version: 
-          - jruby-9.2.19.0
-          - jruby-9.3.0.0
-          - jruby-head
-          - 2.7
-          - 3.0
-          - 3.1
+        ruby-version:
+          - '2.7'
+          - '3.0'
+          - '3.1'
+          - '3.2'
+          - '3.3'
 
     steps:
-    - uses: actions/checkout@v2
+    - uses: actions/checkout@v4
     - name: Set up Ruby
     # To automatically get bug fixes and new Ruby versions for ruby/setup-ruby,
     # change this to (see https://github.com/ruby/setup-ruby#versioning):
