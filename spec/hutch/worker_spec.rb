@@ -71,37 +71,42 @@ describe Hutch::Worker do
   end
 
   describe '#handle_message' do
+    subject do
+      worker.handle_message(consumer, delivery_info, properties, payload)
+      waiter.handle_action(delivery_info.delivery_tag)
+    end
     let(:payload) { '{}' }
     let(:consumer_instance) { double('Consumer instance') }
     let(:delivery_info) do
       double('Delivery Info', routing_key: '',
                               delivery_tag: 'dt')
     end
-    let(:properties) { double('Properties', message_id: nil, content_type: 'application/json') }
-    let(:handle_message) do
-      worker.handle_message(consumer, delivery_info, properties, payload)
-      waiter.handle_action(delivery_info.delivery_tag)
-    end
+    let(:properties) { double('Properties', message_id: nil, content_type: "application/json") }
+    let(:log) { StringIO.new }
     before { allow(consumer).to receive_messages(new: consumer_instance) }
     before { allow(broker).to receive(:ack) }
     before { allow(broker).to receive(:nack) }
     before { allow(consumer_instance).to receive(:broker=) }
     before { allow(consumer_instance).to receive(:delivery_info=) }
+    before { allow(Hutch::Logging).to receive(:logger).and_return(Logger.new(log)) }
     before { waiter.register_handlers }
     after { Thread.main[:action_queue].clear }
 
     context 'when the consumer processes without an exception' do
       before { allow(consumer_instance).to receive(:process) }
-
-      subject! { handle_message }
+      before { allow(consumer_instance).to receive(:message_rejected?).and_return(false) }
 
       it 'passes the message to the consumer' do
+        subject
         expect(consumer_instance).to have_received(:process)
           .with(an_instance_of(Hutch::Message))
+        expect(consumer_instance).to have_received(:message_rejected?)
       end
 
       it 'acknowledges the message' do
+        subject
         expect(broker).to have_received(:ack).with(delivery_info.delivery_tag)
+        expect(consumer_instance).to have_received(:message_rejected?)
       end
     end
 
@@ -119,49 +124,78 @@ describe Hutch::Worker do
         expect(broker).to_not receive(:nack)
         expect(broker).to receive(:requeue)
 
-        handle_message
+        subject
       end
     end
 
 
     context 'when the consumer raises an exception' do
+      let(:expected_log) { /ERROR .+ error in consumer .+ RuntimeError .+ backtrace:/m }
       before { allow(consumer_instance).to receive(:process).and_raise('a consumer error') }
-      before do
-        Hutch::Config[:error_handlers].each do |backend|
-          allow(backend).to receive(:handle)
-        end
-      end
-
-      subject! { handle_message }
 
       it 'logs the error' do
-        Hutch::Config[:error_handlers].each do |backend|
-          expect(backend).to have_received(:handle)
-        end
+        expect { subject }.to change { log.tap(&:rewind).read }.from("").to(expected_log)
       end
 
       it 'rejects the message' do
+        subject
         expect(broker).to have_received(:nack).with(delivery_info.delivery_tag)
+      end
+
+      context 'when a custom error handler supports delivery info' do
+        let(:error_handler) do
+          Class.new(Hutch::ErrorHandlers::Base) do
+            def handle(_properties, _payload, _consumer, _ex, delivery_info)
+              raise unless delivery_info.delivery_tag == 'dt'
+              puts 'handled!'
+            end
+          end
+        end
+
+        around do |example|
+          original = Hutch::Config[:error_handlers]
+          Hutch::Config[:error_handlers] = [error_handler.new]
+          example.run
+          Hutch::Config[:error_handlers] = original
+        end
+
+        it 'calls the custom handler with delivery info' do
+          expect { subject }.to output("handled!\n").to_stdout
+        end
+      end
+
+      context 'when a custom error handler does not support delivery info' do
+        let(:error_handler) do
+          Class.new(Hutch::ErrorHandlers::Base) do
+            def handle(_properties, _payload, _consumer, _ex)
+              puts 'handled!'
+            end
+          end
+        end
+
+        around do |example|
+          original = Hutch::Config[:error_handlers]
+          Hutch::Config[:error_handlers] = [error_handler.new]
+          example.run
+          Hutch::Config[:error_handlers] = original
+        end
+
+        it 'calls the custom handler with delivery info' do
+          expect { subject }.to output("handled!\n").to_stdout
+        end
       end
     end
 
-    context 'when the payload is not valid json' do
-      let(:payload) { 'Not Valid JSON' }
-      before do
-        Hutch::Config[:error_handlers].each do |backend|
-          allow(backend).to receive(:handle)
-        end
-      end
-
-      subject! { handle_message }
+    context "when the payload is not valid json" do
+      let(:payload) { "Not Valid JSON" }
+      let(:expected_log) { /ERROR .+ error in consumer .+ MultiJson::ParseError .+ backtrace:/m }
 
       it 'logs the error' do
-        Hutch::Config[:error_handlers].each do |backend|
-          expect(backend).to have_received(:handle)
-        end
+        expect { subject }.to change { log.tap(&:rewind).read }.from("").to(expected_log)
       end
 
       it 'rejects the message' do
+        subject
         expect(broker).to have_received(:nack).with(delivery_info.delivery_tag)
       end
     end

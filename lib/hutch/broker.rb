@@ -2,6 +2,7 @@ require 'active_support/core_ext/object/blank'
 
 require 'carrot-top'
 require 'forwardable'
+require 'ostruct'
 require 'hutch/logging'
 require 'hutch/exceptions'
 require 'hutch/publisher'
@@ -59,16 +60,16 @@ module Hutch
       @options = options
       set_up_amqp_connection
       if http_api_use_enabled?
-        logger.info 'HTTP API use is enabled'
+        logger.info "HTTP API use is enabled"
         set_up_api_connection
       else
-        logger.info 'HTTP API use is disabled'
+        logger.info "HTTP API use is disabled"
       end
 
       if tracing_enabled?
         logger.info "tracing is enabled using #{@config[:tracer]}"
       else
-        logger.info 'tracing is disabled'
+        logger.info "tracing is disabled"
       end
 
       return unless block_given?
@@ -284,7 +285,7 @@ module Hutch
         config.username = @config[:mq_username]
         config.password = @config[:mq_password]
         config.ssl = @config[:mq_api_ssl]
-        config.protocol = config.ssl ? 'https://' : 'http://'
+        config.protocol = config.ssl ? "https://" : "http://"
         config.sanitized_uri = "#{config.protocol}#{config.username}@#{config.host}:#{config.port}/"
       end
     end
@@ -296,6 +297,7 @@ module Hutch
         params[:host]               = @config[:mq_host]
         params[:port]               = @config[:mq_port]
         params[:vhost]              = @config[:mq_vhost].presence || Hutch::Adapter::DEFAULT_VHOST
+        params[:auth_mechanism]     = @config[:mq_auth_mechanism]
         params[:username]           = @config[:mq_username]
         params[:password]           = @config[:mq_password]
         params[:tls]                = @config[:mq_tls]
@@ -306,9 +308,12 @@ module Hutch
           params[:tls_ca_certificates] = @config[:mq_tls_ca_certificates]
         end
         params[:heartbeat]          = @config[:heartbeat]
+        params[:client_properties]  = @config[:mq_client_properties]
+        params[:connection_name]    = @config[:connection_name]
         params[:connection_timeout] = @config[:connection_timeout]
         params[:read_timeout]       = @config[:read_timeout]
         params[:write_timeout]      = @config[:write_timeout]
+
 
         params[:automatically_recover] = @config[:automatically_recover]
         params[:network_recovery_interval] = @config[:network_recovery_interval]
@@ -325,7 +330,7 @@ module Hutch
       @config[:mq_tls]      = u.scheme == 'amqps'
       @config[:mq_host]     = u.host
       @config[:mq_port]     = u.port || default_mq_port
-      @config[:mq_vhost]    = u.path.sub(%r{^/}, '')
+      @config[:mq_vhost]    = u.path.sub(/^\//, "")
       @config[:mq_username] = u.user
       @config[:mq_password] = u.password
     end
@@ -336,9 +341,9 @@ module Hutch
 
     def sanitized_uri
       p = connection_params
-      scheme = p[:tls] ? 'amqps' : 'amqp'
+      scheme = p[:tls] ? "amqps" : "amqp"
 
-      "#{scheme}://#{p[:username]}@#{p[:host]}:#{p[:port]}/#{p[:vhost].sub(%r{^/}, '')}"
+      "#{scheme}://#{p[:username]}@#{p[:host]}:#{p[:port]}/#{p[:vhost].sub(/^\//, '')}"
     end
 
     def channel_work_pool
