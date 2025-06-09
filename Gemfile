@@ -24,7 +24,6 @@ group :development, :test do
   gem "honeybadger"
   gem "newrelic_rpm"
   gem "ddtrace", "~> 1.8"
-  gem "rspec_junit_formatter", "~> 0.3.0"
   gem "airbrake", "~> 13.0"
   gem "rollbar"
   gem "bugsnag"
