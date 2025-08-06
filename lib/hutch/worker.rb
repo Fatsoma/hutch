@@ -77,11 +77,11 @@ module Hutch
       consumer_instance.delivery_info = delivery_info
       with_tracing(consumer_instance).handle(message)
       logger.debug("ack message(#{properties.message_id || '-'})")
-      waiter.push_action(:ack, delivery_info, properties, nil)
+      waiter.push_action(:ack, delivery_info, properties, nil) unless consumer_instance.message_rejected?
     rescue => ex
       logger.debug("nack message(#{properties.message_id || '-'})")
       waiter.push_action(:nack, delivery_info, properties, ex)
-      handle_error(properties, payload, consumer, ex)
+      handle_error(properties, payload, consumer, ex, delivery_info)
     end
     # rubocop:enable Metrics/CyclomaticComplexity
 
@@ -91,7 +91,7 @@ module Hutch
 
     def handle_error(*args)
       Hutch::Config[:error_handlers].each do |backend|
-        backend.handle(*args)
+        backend.handle(*args.first(backend.method(:handle).arity))
       end
     end
 
