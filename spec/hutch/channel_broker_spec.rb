@@ -16,7 +16,7 @@ describe Hutch::ChannelBroker do
   subject(:channel_broker) { Hutch::ChannelBroker.new(connection, config) }
 
   shared_examples 'an empty channel broker' do
-    %i(channel exchange default_wait_exchange wait_exchanges).each do |name|
+    %i[channel exchange default_wait_exchange wait_exchanges].each do |name|
       it { expect(channel_broker.instance_variable_get("@#{name}")).to be_nil }
     end
   end
@@ -127,6 +127,112 @@ describe Hutch::ChannelBroker do
       expect(channel_broker.instance_variable_get(:@wait_exchanges)[suffix])
         .to eq(new_exchange)
       is_expected.to eq(new_exchange)
+    end
+  end
+
+  describe '#open_channel' do
+    let(:config) { {} }
+
+    before do
+      allow(connection).to receive(:create_channel).and_return(channel)
+      allow(connection).to receive(:prefetch_channel)
+      allow(channel).to receive(:confirm_select)
+      allow(channel).to receive(:on_error) do |&blk|
+        @captured_block = blk
+      end
+    end
+
+    subject { channel_broker.open_channel }
+
+    context 'when no publisher_confirms or force_publisher_confirms option' do
+      it do
+        is_expected.to eq(channel)
+        expect(channel).to_not have_received(:confirm_select)
+      end
+    end
+
+    context 'when publisher_confirms option' do
+      let(:config) { { publisher_confirms: true } }
+
+      it do
+        is_expected.to eq(channel)
+        expect(channel).to have_received(:confirm_select)
+      end
+    end
+
+    context 'when force_publisher_confirms option' do
+      let(:config) { { force_publisher_confirms: true } }
+
+      it do
+        is_expected.to eq(channel)
+        expect(channel).to have_received(:confirm_select)
+      end
+    end
+
+    context 'when on_error block is called' do
+      let(:config) { {} }
+      let(:honey_badger) { double(:honey_badger) }
+      let(:reply_code) { 406 }
+      let(:reply_text) { 'delivery acknowledgement on channel 1 timed out' }
+      let(:class_id) { 'test-class-id' }
+      let(:method_id) { 'test-method-id' }
+
+      before do
+        stub_const('Honeybadger', honey_badger)
+        allow(honey_badger).to receive(:add_breadcrumb)
+        allow(honey_badger).to receive(:notify)
+      end
+
+      subject do
+        channel_broker.open_channel.tap do
+          @captured_block.call(channel, method)
+        end
+      end
+
+      context 'when method is AMQ::Protocol::Channel::Close' do
+        let(:method) do
+          AMQ::Protocol::Channel::Close.new(reply_code, reply_text, class_id, method_id)
+        end
+        let(:context) do
+          {
+            reply_code: reply_code,
+            method: method.inspect
+          }
+        end
+
+        it do
+          is_expected.to eq(channel)
+          expect(@captured_block).to be_a(Proc)
+          expect(honey_badger).to have_received(:notify)
+            .with(
+              error_class: 'Hutch::ChannelBroker::OnError',
+              error_message: reply_text,
+              context: context
+            )
+        end
+      end
+
+      context 'when method is AMQ::Protocol::Channel::CloseOk' do
+        let(:method) do
+          AMQ::Protocol::Channel::CloseOk.new
+        end
+        let(:context) do
+          {
+            method: method.inspect
+          }
+        end
+
+        it do
+          is_expected.to eq(channel)
+          expect(@captured_block).to be_a(Proc)
+          expect(honey_badger).to have_received(:notify)
+            .with(
+              error_class: 'Hutch::ChannelBroker::OnError',
+              error_message: 'Channel error',
+              context: context
+            )
+        end
+      end
     end
   end
 end
