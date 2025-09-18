@@ -80,7 +80,7 @@ module Hutch
             error_class: 'Hutch::ChannelBroker::OnError',
             error_message: error_message,
             context: context
-          )
+          ) if defined?(::Honeybadger)
         end
       end
     end
