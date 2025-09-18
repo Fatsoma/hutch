@@ -131,9 +131,14 @@ describe Hutch::ChannelBroker do
   end
 
   describe '#open_channel' do
+    let(:honey_badger) { double(:honey_badger) }
     let(:config) { {} }
+    let(:method) { Class.new }
 
     before do
+      stub_const('Honeybadger', honey_badger)
+      allow(honey_badger).to receive(:add_breadcrumb)
+      allow(honey_badger).to receive(:notify)
       allow(connection).to receive(:create_channel).and_return(channel)
       allow(connection).to receive(:prefetch_channel)
       allow(channel).to receive(:confirm_select)
@@ -145,6 +150,8 @@ describe Hutch::ChannelBroker do
     subject { channel_broker.open_channel }
 
     context 'when no publisher_confirms or force_publisher_confirms option' do
+      let(:config) { {} }
+
       it do
         is_expected.to eq(channel)
         expect(channel).to_not have_received(:confirm_select)
@@ -170,18 +177,10 @@ describe Hutch::ChannelBroker do
     end
 
     context 'when on_error block is called' do
-      let(:config) { {} }
-      let(:honey_badger) { double(:honey_badger) }
       let(:reply_code) { 406 }
       let(:reply_text) { 'delivery acknowledgement on channel 1 timed out' }
       let(:class_id) { 'test-class-id' }
       let(:method_id) { 'test-method-id' }
-
-      before do
-        stub_const('Honeybadger', honey_badger)
-        allow(honey_badger).to receive(:add_breadcrumb)
-        allow(honey_badger).to receive(:notify)
-      end
 
       subject do
         channel_broker.open_channel.tap do

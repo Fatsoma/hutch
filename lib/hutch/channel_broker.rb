@@ -69,7 +69,7 @@ module Hutch
           logger.error "Channel error [channel=#{channel.inspect}, method=#{method.inspect}, active=#{active}]"
 
           context = {method: method.inspect}
-          if method && method.is_a?(AMQ::Protocol::Channel::Close)
+          if method.is_a?(AMQ::Protocol::Channel::Close)
             error_message = method.reply_text
             context[:reply_code] = method.reply_code
           else
