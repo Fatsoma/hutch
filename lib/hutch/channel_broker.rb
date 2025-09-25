@@ -63,6 +63,25 @@ module Hutch
           logger.info 'enabling publisher confirms'
           ch.confirm_select
         end
+
+        # on_error handler logs and notifies any unhandled channel errors
+        ch.on_error do |channel, method|
+          logger.error "Channel error [channel=#{channel.inspect}, method=#{method.inspect}, active=#{active}]"
+
+          context = {method: method.inspect}
+          if method.is_a?(AMQ::Protocol::Channel::Close)
+            error_message = method.reply_text
+            context[:reply_code] = method.reply_code
+          else
+            error_message = 'Channel error'
+          end
+
+          ::Honeybadger.notify(
+            error_class: 'Hutch::ChannelBroker::OnError',
+            error_message: error_message,
+            context: context
+          ) if defined?(::Honeybadger)
+        end
       end
     end
 
