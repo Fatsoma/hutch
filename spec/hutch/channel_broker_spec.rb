@@ -5,14 +5,23 @@ describe Hutch::ChannelBroker do
   before do
     Hutch::Config.initialize(client_logger: Hutch::Logging.logger)
     @config = Hutch::Config.to_hash
+    stub_const('Honeybadger', honey_badger)
+    allow(honey_badger).to receive(:add_breadcrumb)
+    allow(honey_badger).to receive(:instrumentation)
+    allow(honey_badger).to receive(:notify)
+    allow(logger).to receive(:info)
+    allow(logger).to receive(:error)
+    allow(channel_broker).to receive(:logger).and_return(logger)
   end
   let!(:config) { @config }
   after do
     Hutch::Config.instance_variable_set(:@config, nil)
     Hutch::Config.initialize
   end
+  let(:logger) { double(:logger) }
   let(:connection) { double(:connection) }
   let(:channel) { double(:channel) }
+  let(:honey_badger) { double(:honey_badger) }
 
   subject(:channel_broker) { Hutch::ChannelBroker.new(connection, config) }
 
@@ -143,17 +152,16 @@ describe Hutch::ChannelBroker do
         def confirm_select; end
       end.new
     end
-    let(:honey_badger) { double(:honey_badger) }
     let(:config) { {} }
     let(:method) { Class.new }
+    let(:action_queue_size) { 5 }
 
     before do
-      stub_const('Honeybadger', honey_badger)
-      allow(honey_badger).to receive(:add_breadcrumb)
-      allow(honey_badger).to receive(:notify)
       allow(connection).to receive(:create_channel).and_return(channel)
       allow(connection).to receive(:prefetch_channel)
       allow(channel).to receive(:confirm_select)
+      allow(Thread.main).to receive(:[]).with(:action_queue)
+        .and_return(double(size: action_queue_size))
     end
 
     subject { channel_broker.open_channel }
@@ -204,7 +212,8 @@ describe Hutch::ChannelBroker do
         let(:context) do
           {
             reply_code: reply_code,
-            method: method.inspect
+            method: method.inspect,
+            action_queue_size: action_queue_size
           }
         end
 
@@ -225,7 +234,8 @@ describe Hutch::ChannelBroker do
         end
         let(:context) do
           {
-            method: method.inspect
+            method: method.inspect,
+            action_queue_size: action_queue_size
           }
         end
 

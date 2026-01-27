@@ -66,9 +66,18 @@ module Hutch
 
         # on_error handler logs and notifies any unhandled channel errors
         ch.on_error do |channel, method|
-          logger.error "Channel error [channel=#{channel.inspect}, method=#{method.inspect}, active=#{active}]"
+          action_queue_size = Thread.main[:action_queue]&.size
 
-          context = {method: method.inspect}
+          logger.error("Channel error [channel=#{channel.inspect}, " \
+           "method=#{method.inspect}, " \
+           "active=#{active}, " \
+           "action_queue_size=#{action_queue_size}]"
+          )
+
+          context = {
+            method: method.inspect,
+            action_queue_size: action_queue_size
+          }
           if method.is_a?(AMQ::Protocol::Channel::Close)
             error_message = method.reply_text
             context[:reply_code] = method.reply_code
