@@ -42,7 +42,7 @@ module Hutch
 
     def push_action(action, delivery_info, properties, ex)
       Thread.main[:action_queue] << [action, delivery_info, properties, ex]
-      action_write.write("#{delivery_info.delivery_tag}\n")
+      action_write.write("x") # Single byte notification
     end
 
     # return true to continue processing
@@ -68,16 +68,13 @@ module Hutch
       false
     end
 
-    # return true to continue processing
-    def handle_action(_delivery_tag)
+    def handle_action
       action, delivery_info, properties, ex = Thread.main[:action_queue].pop
-      # TODO: check delivery_tag ??
       case action
       when :ack then broker.ack(delivery_info.delivery_tag)
       when :nack then acknowledge_error(delivery_info, properties, ex)
       else raise "Assertion failed - unhandled action: #{action.inspect}"
       end
-      true
     end
 
     def acknowledge_error(delivery_info, properties, ex)
@@ -96,8 +93,25 @@ module Hutch
         sig = sig_read.gets.chomp
         handle_signal(sig)
       when action_read
-        delivery_tag = action_read.gets.chomp
-        handle_action(delivery_tag)
+        count = 0
+        batch_size = 5
+
+        # Process a batch of up to 5 messages
+        while count < batch_size
+          # Try to read one notification
+          begin
+            action_read.read_nonblock(1) # Read just one byte
+          rescue IO::WaitReadable
+            break # No more notifications in pipe
+          end
+
+          # Process the corresponding action
+          break if Thread.main[:action_queue].empty?
+          handle_action
+          count += 1
+        end
+
+        true # return true to continue processing
       end
     end
 
