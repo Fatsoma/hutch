@@ -26,23 +26,36 @@ module Hutch
     end
 
     def register_handlers
-      self.sig_read, self.sig_write = IO.pipe
-      register_signal_handlers
-
-      self.action_read, self.action_write = IO.pipe
       Thread.main[:action_queue] = Queue.new
+      register_signal_handlers
     end
 
     def wait_until_signaled
-      loop do
-        read_pipes = wait_for_signal.first
-        break unless read_pipes.all? { |pipe| read_pipe(pipe) }
+      # Block and wait for messages
+      while (event = action_queue.pop)
+        type, data = event
+
+        case type
+        when :signal
+          # Return false breaks the loop for graceful shutdown
+          break unless handle_signal(data)
+        when :action
+          handle_action(data)
+        else
+          raise "Assertion failed - unhandled event: #{type}"
+        end
       end
     end
 
+    # Consumer threads call this to push work to the main thread
     def push_action(action, delivery_info, properties, ex)
-      Thread.main[:action_queue] << [action, delivery_info, properties, ex]
-      action_write.write("#{delivery_info.delivery_tag}\n")
+      action_queue << [:action, {
+        action: action,
+        delivery_info: delivery_info,
+        properties: properties,
+        ex: ex,
+        pushed_at: Time.now.to_f
+      }]
     end
 
     # return true to continue processing
@@ -65,24 +78,30 @@ module Hutch
 
     def handle_shutdown_signal(sig)
       logger.info "caught SIG#{sig}, stopping hutch..."
+      drain_actions
       false
     end
 
-    # return true to continue processing
-    def handle_action(_delivery_tag)
-      action, delivery_info, properties, ex = Thread.main[:action_queue].pop
-      # TODO: check delivery_tag ??
-      case action
-      when :ack then broker.ack(delivery_info.delivery_tag)
-      when :nack then acknowledge_error(delivery_info, properties, ex)
-      else raise "Assertion failed - unhandled action: #{action.inspect}"
+    def handle_action(data)
+      latency_ms = (Time.now.to_f - data[:pushed_at]) * 1000
+
+      if latency_ms > 5000
+        logger.warn "Queue latency exceeded 5000ms (actual #{latency_ms}ms)"
       end
-      true
+
+      case data[:action]
+      when :ack then broker.ack(data[:delivery_info].delivery_tag)
+      when :nack then acknowledge_error(data[:delivery_info], data[:properties], data[:ex])
+      else raise "Assertion failed - unhandled action: #{action}"
+      end
+    rescue => e
+      logger.error "Error during #{data[:action]}: #{e.message}"
+      raise e
     end
 
     def acknowledge_error(delivery_info, properties, ex)
       acks = error_acknowledgements +
-        [Hutch::Acknowledgements::NackOnAllFailures.new]
+             [Hutch::Acknowledgements::NackOnAllFailures.new]
       acks.find do |backend|
         backend.handle(delivery_info, properties, broker, ex)
       end
@@ -90,21 +109,11 @@ module Hutch
 
     private
 
-    def read_pipe(pipe)
-      case pipe
-      when sig_read
-        sig = sig_read.gets.chomp
-        handle_signal(sig)
-      when action_read
-        delivery_tag = action_read.gets.chomp
-        handle_action(delivery_tag)
-      end
-    end
-
     def log_thread_backtraces
       logger.info 'Requested a VM-wide thread stack trace dump...'
       Thread.list.each do |thread|
-        logger.info "Thread TID-#{thread.object_id.to_s(36)} #{thread['label']}"
+        main_label = thread == Thread.main ? 'main' : ''
+        logger.info "Thread TID-#{thread.object_id.to_s(36)} #{thread['label']} #{main_label}"
         logger.info backtrace_for(thread)
       end
     end
@@ -118,18 +127,11 @@ module Hutch
     end
 
     attr_reader :broker
-    attr_accessor :sig_read, :sig_write, :action_read, :action_write
-
-    def wait_for_signal
-      IO.select([sig_read, action_read])
-    end
 
     def register_signal_handlers
       REGISTERED_SIGNALS.each do |sig|
-        # This needs to be reentrant, so we queue up signals to be handled
-        # in the run loop, rather than acting on signals here
         trap(sig) do
-          sig_write.puts(sig)
+          action_queue << [:signal, sig]
         end
       end
     end
@@ -139,7 +141,27 @@ module Hutch
     end
 
     def error_acknowledgements
-      Hutch::Config[:error_acknowledgements]
+      Hutch::Config[:error_acknowledgements] || []
+    end
+
+    def action_queue
+      queue = Thread.main[:action_queue]
+      raise 'Undefined main thread queue' unless queue
+      queue
+    end
+
+    # Drain the queue during shutdown
+    def drain_actions
+      queue = action_queue
+
+      until queue.empty?
+        begin
+          type, data = queue.pop(true)
+          handle_action(data) if type == :action
+        rescue ThreadError
+          break
+        end
+      end
     end
   end
 end

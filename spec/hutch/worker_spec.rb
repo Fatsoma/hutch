@@ -73,7 +73,8 @@ describe Hutch::Worker do
   describe '#handle_message' do
     subject do
       worker.handle_message(consumer, delivery_info, properties, payload)
-      waiter.handle_action(delivery_info.delivery_tag)
+      _, data = Thread.main[:action_queue].pop
+      waiter.handle_action(data)
     end
     let(:payload) { '{}' }
     let(:consumer_instance) { double('Consumer instance') }
