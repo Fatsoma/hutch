@@ -81,12 +81,16 @@ module Hutch
     end
 
     def disconnect
-      channel_broker.disconnect unless Thread.current[CHANNEL_BROKER_KEY].nil?
-      Thread.current[CHANNEL_BROKER_KEY] = nil
+      disconnect_channel
       @connection.close if @connection
       @connection = nil
       @api_client = nil
       @publisher = nil
+    end
+
+    def disconnect_channel
+      channel_broker.disconnect unless Thread.current[CHANNEL_BROKER_KEY].nil?
+      Thread.current[CHANNEL_BROKER_KEY] = nil
     end
 
     # Connect to RabbitMQ via AMQP

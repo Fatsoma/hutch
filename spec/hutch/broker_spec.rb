@@ -61,6 +61,70 @@ describe Hutch::Broker do
     end
   end
 
+  describe '#disconnect' do
+    let(:channel_broker) { instance_double('Hutch::ChannelBroker', disconnect: nil) }
+    let(:connection) { instance_double('Hutch::Adapter', close: nil) }
+    before { allow(Hutch::ChannelBroker).to receive(:new).and_return(channel_broker) }
+    before { allow(channel_broker).to receive(:disconnect) }
+
+    context 'when no connection' do
+      it 'skips disconnect channel' do
+        expect(channel_broker).not_to receive(:disconnect)
+        broker.disconnect
+
+        expect(broker.connection).to be nil
+      end
+    end
+
+    context 'when channel broker absent' do
+      before { broker.instance_variable_set(:@connection, connection) }
+      before { allow(broker.connection).to receive(:close) }
+
+      it 'closes connection' do
+        expect(channel_broker).not_to receive(:disconnect)
+        expect(broker.connection).to receive(:close)
+        broker.disconnect
+        expect(broker.connection).to be nil
+      end
+    end
+
+    context 'when channel broker present' do
+      before { broker.instance_variable_set(:@connection, connection) }
+      before { broker.send(:channel_broker) }
+
+      it 'disconnects the channel' do
+        expect(broker.connection).to receive(:close)
+        expect(channel_broker).to receive(:disconnect)
+        broker.disconnect
+        expect(broker.connection).to be nil
+      end
+    end
+  end
+
+  describe '#disconnect_channel' do
+    let(:channel_broker) { instance_double('Hutch::ChannelBroker', disconnect: nil) }
+    before { allow(Hutch::ChannelBroker).to receive(:new).and_return(channel_broker) }
+    before { allow(channel_broker).to receive(:disconnect) }
+
+    context 'when channel broker absent' do
+      it 'does not try to create channel broker' do
+        expect(Hutch::ChannelBroker).to_not receive(:new)
+        broker.disconnect_channel
+        expect(Thread.current[Hutch::Broker::CHANNEL_BROKER_KEY]).to be nil
+      end
+    end
+
+    context 'when channel broker present' do
+      before { broker.send(:channel_broker) }
+
+      it 'disconnects the channel' do
+        expect(channel_broker).to receive(:disconnect)
+        broker.disconnect_channel
+        expect(Thread.current[Hutch::Broker::CHANNEL_BROKER_KEY]).to be nil
+      end
+    end
+  end
+
   describe '#set_up_amqp_connection' do
     it 'opens a connection, channel and declares an exchange' do
       expect(broker).to receive(:open_connection!).ordered
